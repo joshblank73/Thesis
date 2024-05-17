@@ -1,0 +1,3121 @@
+---
+title: "STAT 599 Qwixx Simulation"
+author: "Joshua Blank"
+date: "2024-01-22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Packages
+
+```{r}
+library(dplyr)
+library(ggplot2)
+```
+
+# Helper Functions
+
+## Row Score Calculation
+
+```{r}
+row_score <- function(row) {
+  if (row == 0) return(0)
+  return(row + row_score(row - 1))
+}
+```
+
+## Row Position Conversion
+
+```{r}
+rpc <- function(row_position) {
+  return(row_position - (10 - (12 - row_position) * 2))
+}
+```
+
+## Gap Score Calculation
+
+```{r}
+gsc <- function(score) {
+  return(score - (11 - (10 - score) * 2))
+}
+```
+
+## Position Score Calculation
+
+```{r}
+psc <- function(score) {
+  return(score - (10 - (10 - score) * 2))
+}
+```
+
+## Gap Score Calculation (Strategy 2)
+
+```{r}
+gsc2 <- function(score) {
+  return(score - (5 - (6 - score) * 2))
+}
+```
+
+# Different Strategies
+
+## Strategy 0: Default (Random Decision)
+
+```{r}
+strategy0 <- function (row_r, row_y, row_g, row_b, decisions, turn = TRUE) {
+  skip_score <- 1
+  gap_scores1 <- rep(NA, 45)
+  gap_scores2 <- rep(NA, 45)
+  position_scores1 <- rep(NA, 45)
+  position_scores2 <- rep(NA, 45)
+  count_scores1 <- rep(NA, 45)
+  count_scores2 <- rep(NA, 45)
+
+  if (!turn) {
+    decisions$roll2 = rep(NA, 45)
+    decisions$roll_color2 = rep('skip', 45)
+  }
+
+  for (i in 1:45) {
+    if (decisions$roll_color1[i] == 'skip') {
+      gap_scores1[i] <- skip_score
+      position_scores1[i] <- skip_score
+      count_scores1[i] <- skip_score
+    }
+    else if (decisions$roll_color1[i] == 'red') {
+      gap_scores1[i] <- gsc(decisions$roll1[i] - row_r[1] - 1)
+      position_scores1[i] <- psc(decisions$roll1[i] - 2)
+      count_scores1[i] <- row_r[2]
+    }
+    else if (decisions$roll_color1[i] == 'yellow') {
+      gap_scores1[i] <- gsc(decisions$roll1[i] - row_y[1] - 1)
+      position_scores1[i] <- psc(decisions$roll1[i] - 2)
+      count_scores1[i] <- row_y[2]
+    }
+    else if (decisions$roll_color1[i] == 'green') {
+      gap_scores1[i] <- gsc(row_g[1] - decisions$roll1[i] - 1)
+      position_scores1[i] <- psc(rpc(decisions$roll1[i]) - 2)
+      count_scores1[i] <- row_g[2]
+    }
+    else if (decisions$roll_color1[i] == 'blue') {
+      gap_scores1[i] <- gsc(row_b[1] - decisions$roll1[i] - 1)
+      position_scores1[i] <- psc(rpc(decisions$roll1[i]) - 2)
+      count_scores1[i] <- row_b[2]
+    }
+
+    if (decisions$roll_color2[i] == 'skip') {
+      gap_scores2[i] <- skip_score * 9/10
+      position_scores2[i] <- skip_score
+      count_scores2[i] <- skip_score
+    }
+    else if (decisions$roll_color2[i] == 'red') {
+      if (decisions$roll_color1[i] == 'red') {
+        gap_scores2[i] <- gsc(decisions$roll2[i] - decisions$roll1[i] - 1)
+        position_scores2[i] <- psc(decisions$roll2[i] - 2)
+        count_scores2[i] <- row_r[2] + 1
+      }
+      else {
+        gap_scores2[i] <- gsc(decisions$roll2[i] - row_r[1] - 1)
+        position_scores2[i] <- psc(decisions$roll2[i] - 2)
+        count_scores2[i] <- row_r[2]
+      }
+    }
+    else if (decisions$roll_color2[i] == 'yellow') {
+      if (decisions$roll_color1[i] == 'yellow') {
+        gap_scores2[i] <- gsc(decisions$roll2[i] - decisions$roll1[i] - 1)
+        position_scores2[i] <- psc(decisions$roll2[i] - 2)
+        count_scores2[i] <- row_y[2] + 1
+      }
+      else {
+        gap_scores2[i] <- gsc(decisions$roll2[i] - row_y[1] - 1)
+        position_scores2[i] <- psc(decisions$roll2[i] - 2)
+        count_scores2[i] <- row_y[2]
+      }
+    }
+    else if (decisions$roll_color2[i] == 'green') {
+      if (decisions$roll_color1[i] == 'green') {
+        gap_scores2[i] <- gsc(decisions$roll1[i] - decisions$roll2[i] - 1)
+        position_scores2[i] <- psc(rpc(decisions$roll2[i]) - 2)
+        count_scores2[i] <- row_g[2] + 1
+      }
+      else {
+        gap_scores2[i] <- gsc(row_g[1] - decisions$roll2[i] - 1)
+        position_scores2[i] <- psc(rpc(decisions$roll2[i]) - 2)
+        count_scores2[i] <- row_g[2]
+      }
+    }
+    else if (decisions$roll_color2[i] == 'blue') {
+      if (decisions$roll_color1[i] == 'blue') {
+        gap_scores2[i] <- gsc(decisions$roll1[i] - decisions$roll2[i] - 1)
+        position_scores2[i] <- psc(rpc(decisions$roll2[i]) - 2)
+        count_scores2[i] <- row_b[2] + 1
+      }
+      else {
+        gap_scores2[i] <- gsc(row_b[1] - decisions$roll2[i] - 1)
+        position_scores2[i] <- psc(rpc(decisions$roll2[i]) - 2)
+        count_scores2[i] <- row_b[2]
+      }
+    }
+
+    if (decisions$roll_color1[i] != 'skip') {
+      if (!is.na(gap_scores1[i]) & (gap_scores1[i] < 0 | gap_scores1[i] >= 10))
+        gap_scores1[i] <- NA
+      if (!is.na(position_scores1[i]) &
+          ((position_scores1[i] < 0 | position_scores1[i] >= 11) |
+           (position_scores1[i] == 0 & count_scores1[i] < 5)))
+        position_scores1[i] <- NA
+      if (!is.na(count_scores1[i]) & (count_scores1[i] < 0 | count_scores1[i] >= 11))
+        count_scores1[i] <- NA
+    }
+
+    if (decisions$roll_color2[i] != 'skip') {
+      if (!is.na(gap_scores2[i]) & (gap_scores2[i] < 0 | gap_scores2[i] >= 10))
+        gap_scores2[i] <- NA
+      if (!is.na(position_scores2[i]) &
+          ((position_scores2[i] < 0 | position_scores2[i] >= 11) |
+           (position_scores2[i] == 0 & count_scores2[i] < 5)))
+        position_scores2[i] <- NA
+      if (!is.na(count_scores2[i]) & (count_scores2[i] < 0 | count_scores2[i] >= 11))
+        count_scores2[i] <- NA
+    }
+  }
+
+  # calculating scores
+  gap_scores <- gap_scores1 + gap_scores2
+  position_scores <- position_scores1 + position_scores2
+  count_scores <- count_scores1 + count_scores2
+  total_scores <- gap_scores + position_scores + count_scores
+
+  # adjusting worst and best scores
+  total_scores[!is.na(total_scores)] <- 1
+  total_scores[is.na(total_scores)] <- 0
+
+  # finding score weights
+  weights <- total_scores / sum(total_scores)
+
+  # finding random elligible score index
+  score_index <- sample(1:45, 1, prob=weights)
+
+  return(decisions[score_index,])
+}
+```
+
+## Strategy 1: Score Based
+
+Priorities:
+
+1)  Gap: smallest number of spaces between proposed move(s) and last chosen space
+
+2)  Position: furthest left move(s)
+
+3)  Count: row(s) with the most spaces crossed off
+
+Skip score: Determines how many points a skip receives for its gap, position, and count scores
+
+Skip adjustment: Determines how much the skip score decreases for each penalty taken
+
+Weight: Determines how much the probability score is weighted
+
+```{r}
+strategy1 <- function (row_r, row_y, row_g, row_b, decisions, priority_order = '123',
+                       skip_score = 5, skip_adjustment = 0, weight = 1/300, penalty,
+                       turn = TRUE) {
+  skip_score <- skip_score + skip_adjustment*penalty
+  gap_scores1 <- rep(NA, 45)
+  gap_scores2 <- rep(NA, 45)
+  position_scores1 <- rep(NA, 45)
+  position_scores2 <- rep(NA, 45)
+  count_scores1 <- rep(NA, 45)
+  count_scores2 <- rep(NA, 45)
+  prob_scores1 <- rep(0, 45)
+  prob_scores2 <- rep(0, 45)
+
+  if (!turn) {
+    decisions$roll2 = rep(NA, 45)
+    decisions$roll_color2 = rep('skip', 45)
+  }
+
+  for (i in 1:45) {
+    if (decisions$roll_color1[i] == 'skip') {
+      gap_scores1[i] <- skip_score * 9/10
+      position_scores1[i] <- skip_score
+      count_scores1[i] <- skip_score
+    }
+    else if (decisions$roll_color1[i] == 'red') {
+      gap_scores1[i] <- gsc(decisions$roll1[i] - row_r[1] - 1)
+      position_scores1[i] <- psc(decisions$roll1[i] - 2)
+      count_scores1[i] <- row_r[2]
+    }
+    else if (decisions$roll_color1[i] == 'yellow') {
+      gap_scores1[i] <- gsc(decisions$roll1[i] - row_y[1] - 1)
+      position_scores1[i] <- psc(decisions$roll1[i] - 2)
+      count_scores1[i] <- row_y[2]
+    }
+    else if (decisions$roll_color1[i] == 'green') {
+      gap_scores1[i] <- gsc(row_g[1] - decisions$roll1[i] - 1)
+      position_scores1[i] <- psc(rpc(decisions$roll1[i]) - 2)
+      count_scores1[i] <- row_g[2]
+    }
+    else if (decisions$roll_color1[i] == 'blue') {
+      gap_scores1[i] <- gsc(row_b[1] - decisions$roll1[i] - 1)
+      position_scores1[i] <- psc(rpc(decisions$roll1[i]) - 2)
+      count_scores1[i] <- row_b[2]
+    }
+
+    if (decisions$roll_color2[i] == 'skip') {
+      gap_scores2[i] <- skip_score * 9/10
+      position_scores2[i] <- skip_score
+      count_scores2[i] <- skip_score
+    }
+    else if (decisions$roll_color2[i] == 'red') {
+      if (decisions$roll_color1[i] == 'red') {
+        gap_scores2[i] <- gsc(decisions$roll2[i] - decisions$roll1[i] - 1)
+        position_scores2[i] <- psc(decisions$roll2[i] - 2)
+        count_scores2[i] <- row_r[2] + 1
+      }
+      else {
+        gap_scores2[i] <- gsc(decisions$roll2[i] - row_r[1] - 1)
+        position_scores2[i] <- psc(decisions$roll2[i] - 2)
+        count_scores2[i] <- row_r[2]
+      }
+    }
+    else if (decisions$roll_color2[i] == 'yellow') {
+      if (decisions$roll_color1[i] == 'yellow') {
+        gap_scores2[i] <- gsc(decisions$roll2[i] - decisions$roll1[i] - 1)
+        position_scores2[i] <- psc(decisions$roll2[i] - 2)
+        count_scores2[i] <- row_y[2] + 1
+      }
+      else {
+        gap_scores2[i] <- gsc(decisions$roll2[i] - row_y[1] - 1)
+        position_scores2[i] <- psc(decisions$roll2[i] - 2)
+        count_scores2[i] <- row_y[2]
+      }
+    }
+    else if (decisions$roll_color2[i] == 'green') {
+      if (decisions$roll_color1[i] == 'green') {
+        gap_scores2[i] <- gsc(decisions$roll1[i] - decisions$roll2[i] - 1)
+        position_scores2[i] <- psc(rpc(decisions$roll2[i]) - 2)
+        count_scores2[i] <- row_g[2] + 1
+      }
+      else {
+        gap_scores2[i] <- gsc(row_g[1] - decisions$roll2[i] - 1)
+        position_scores2[i] <- psc(rpc(decisions$roll2[i]) - 2)
+        count_scores2[i] <- row_g[2]
+      }
+    }
+    else if (decisions$roll_color2[i] == 'blue') {
+      if (decisions$roll_color1[i] == 'blue') {
+        gap_scores2[i] <- gsc(decisions$roll1[i] - decisions$roll2[i] - 1)
+        position_scores2[i] <- psc(rpc(decisions$roll2[i]) - 2)
+        count_scores2[i] <- row_b[2] + 1
+      }
+      else {
+        gap_scores2[i] <- gsc(row_b[1] - decisions$roll2[i] - 1)
+        position_scores2[i] <- psc(rpc(decisions$roll2[i]) - 2)
+        count_scores2[i] <- row_b[2]
+      }
+    }
+
+    if (decisions$roll_color1[i] != 'skip') {
+      if (!is.na(gap_scores1[i]) & (gap_scores1[i] < 0 | gap_scores1[i] >= 10))
+        gap_scores1[i] <- NA
+      if (!is.na(position_scores1[i]) &
+          ((position_scores1[i] < 0 | position_scores1[i] >= 11) |
+           (position_scores1[i] == 0 & count_scores1[i] < 5)))
+        position_scores1[i] <- NA
+      if (!is.na(count_scores1[i]) & (count_scores1[i] < 0 | count_scores1[i] >= 11))
+        count_scores1[i] <- NA
+    }
+
+    if (decisions$roll_color2[i] != 'skip') {
+      if (!is.na(gap_scores2[i]) & (gap_scores2[i] < 0 | gap_scores2[i] >= 10))
+        gap_scores2[i] <- NA
+      if (!is.na(position_scores2[i]) &
+          ((position_scores2[i] < 0 | position_scores2[i] >= 11) |
+           (position_scores2[i] == 0 & count_scores2[i] < 5)))
+        position_scores2[i] <- NA
+      if (!is.na(count_scores2[i]) & (count_scores2[i] < 0 | count_scores2[i] >= 11))
+        count_scores2[i] <- NA
+    }
+
+    # calculate probability scores
+    if (decisions$roll_color1[i] != 'skip')
+      prob_scores1[i] <- (abs(position_scores1[i] - 5)) * (gap_scores1[i] + count_scores1[i])
+    if (decisions$roll_color2[i] != 'skip')
+      prob_scores2[i] <- (abs(position_scores2[i] - 5)) * (gap_scores2[i] + count_scores2[i])
+
+    # only skip if necessary with 3 penalties
+    if (decisions$roll_color1[i] == 'skip' & decisions$roll_color2[i] == 'skip' &
+        penalty == 3) {
+      gap_scores1[i] <- 0
+      gap_scores2[i] <- 0
+      position_scores1[i] <- 0
+      position_scores2[i] <- 0
+      count_scores1[i] <- 0
+      count_scores2[i] <- 0
+    }
+  }
+
+  # calculating scores
+  gap_scores <- (gap_scores1 + gap_scores2) * 10/9
+  position_scores <- (position_scores1 + position_scores2)
+  count_scores <- (count_scores1 + count_scores2)
+  prob_scores <- (prob_scores1 + prob_scores2) * weight
+
+  total_scores <- gap_scores + position_scores + count_scores + prob_scores
+
+  best_score_index <- which(total_scores == max(na.omit(total_scores)))
+
+  # priority options
+  if (priority_order == '123') {
+    if (length(best_score_index) > 1) {
+      gap_scores[-best_score_index] <- NA
+      best_score_index <- which(gap_scores == max(na.omit(gap_scores)))
+      if (length(best_score_index) > 1) {
+        position_scores[-best_score_index] <- NA
+        best_score_index <- which(position_scores == max(na.omit(position_scores)))
+        if (length(best_score_index) > 1) {
+          count_scores[-best_score_index] <- NA
+          best_score_index <- which(count_scores == max(na.omit(count_scores)))
+          if (length(best_score_index) > 1) best_score_index <- sample(best_score_index, 1)
+        }
+      }
+    }
+  }
+
+  else if (priority_order == '132') {
+    if (length(best_score_index) > 1) {
+      gap_scores[-best_score_index] <- NA
+      best_score_index <- which(gap_scores == max(na.omit(gap_scores)))
+      if (length(best_score_index) > 1) {
+        count_scores[-best_score_index] <- NA
+        best_score_index <- which(count_scores == max(na.omit(count_scores)))
+        if (length(best_score_index) > 1) {
+          position_scores[-best_score_index] <- NA
+          best_score_index <- which(position_scores == max(na.omit(position_scores)))
+          if (length(best_score_index) > 1) best_score_index <- sample(best_score_index, 1)
+        }
+      }
+    }
+  }
+
+  else if (priority_order == '213') {
+    if (length(best_score_index) > 1) {
+      position_scores[-best_score_index] <- NA
+      best_score_index <- which(position_scores == max(na.omit(position_scores)))
+      if (length(best_score_index) > 1) {
+        gap_scores[-best_score_index] <- NA
+        best_score_index <- which(gap_scores == max(na.omit(gap_scores)))
+        if (length(best_score_index) > 1) {
+          count_scores[-best_score_index] <- NA
+          best_score_index <- which(count_scores == max(na.omit(count_scores)))
+          if (length(best_score_index) > 1) best_score_index <- sample(best_score_index, 1)
+        }
+      }
+    }
+  }
+
+  else if (priority_order == '231') {
+    if (length(best_score_index) > 1) {
+      position_scores[-best_score_index] <- NA
+      best_score_index <- which(position_scores == max(na.omit(position_scores)))
+      if (length(best_score_index) > 1) {
+        count_scores[-best_score_index] <- NA
+        best_score_index <- which(count_scores == max(na.omit(count_scores)))
+        if (length(best_score_index) > 1) {
+          gap_scores[-best_score_index] <- NA
+          best_score_index <- which(gap_scores == max(na.omit(gap_scores)))
+          if (length(best_score_index) > 1) best_score_index <- sample(best_score_index, 1)
+        }
+      }
+    }
+  }
+
+  else if (priority_order == '312') {
+    if (length(best_score_index) > 1) {
+      count_scores[-best_score_index] <- NA
+      best_score_index <- which(count_scores == max(na.omit(count_scores)))
+      if (length(best_score_index) > 1) {
+        gap_scores[-best_score_index] <- NA
+        best_score_index <- which(gap_scores == max(na.omit(gap_scores)))
+        if (length(best_score_index) > 1) {
+          position_scores[-best_score_index] <- NA
+          best_score_index <- which(position_scores == max(na.omit(position_scores)))
+          if (length(best_score_index) > 1) best_score_index <- sample(best_score_index, 1)
+        }
+      }
+    }
+  }
+
+  else if (priority_order == '321') {
+    if (length(best_score_index) > 1) {
+      count_scores[-best_score_index] <- NA
+      best_score_index <- which(count_scores == max(na.omit(count_scores)))
+      if (length(best_score_index) > 1) {
+        position_scores[-best_score_index] <- NA
+        best_score_index <- which(position_scores == max(na.omit(position_scores)))
+        if (length(best_score_index) > 1) {
+          gap_scores[-best_score_index] <- NA
+          best_score_index <- which(gap_scores == max(na.omit(gap_scores)))
+          if (length(best_score_index) > 1) best_score_index <- sample(best_score_index, 1)
+        }
+      }
+    }
+  }
+
+  return(decisions[best_score_index,])
+}
+```
+
+## Strategy 2: Race to Lock
+
+Move Options:
+
+1.  Move to any valid state
+
+2.  Only move to states that decrease number of rolls needed to lock a row based on 1 roll
+
+3.  Only move to states that decrease number of rolls needed to lock a row based on 2 rolls
+
+4.  Only move to states that decrease number of rolls needed to lock a row based on 3 rolls
+
+```{r}
+strategy2 <- function (row_r, row_y, row_g, row_b, decisions, move_option = 3,
+                       turn = TRUE) {
+  states <- list(A = c(1, 0), B = c(2, 1), C = c(3, 1), D = c(4, 1), E = c(5, 1),
+                 F = c(6, 1), G = c(7, 1), H = c(3, 2), I = c(4, 2), J = c(5, 2),
+                 K = c(6, 2), L = c(7, 2), M = c(8, 2), N = c(4, 3), O = c(5, 3),
+                 P = c(6, 3), Q = c(7, 3), R = c(8, 3), S = c(9, 3), T = c(5, 4),
+                 U = c(6, 4), V = c(7, 4), W = c(8, 4), X = c(9, 4), Y = c(10, 4))
+
+  if (move_option == 1) {
+    moves <- list(A = c('B', 'C', 'D', 'E', 'F', 'G'),
+                  B = c('H', 'I', 'J', 'K', 'L', 'M'),
+                  C = c('I', 'J', 'K', 'L', 'M'), D = c('J', 'K', 'L', 'M'),
+                  E = c('K', 'L', 'M'), F = c('L', 'M'), G = c('M'),
+                  H = c('N', 'O', 'P', 'Q', 'R', 'S'),
+                  I = c('O', 'P', 'Q', 'R', 'S'),
+                  J = c('P', 'Q', 'R', 'S'), K = c('Q', 'R', 'S'),
+                  L = c('R', 'S'), M = c('S'),
+                  N = c('T', 'U', 'V', 'W', 'X', 'Y'),
+                  O = c('U', 'V', 'W', 'X', 'Y'), P = c('V', 'W', 'X', 'Y'),
+                  Q = c('W', 'X', 'Y'), R = c('X', 'Y'), S = c('Y'),
+                  T = c('Z'), U = c('Z'), V = c('Z'), W = c('Z'), X = c('Z'),
+                  Y = c('Z'), Z = c('Z'))
+  }
+  else if (move_option == 2) {
+    moves <- list(A = c('B', 'C', 'D'), B = c('H', 'I', 'J'), C = c('I', 'J', 'K'),
+                  D = c('J', 'K'), E = c('K'), F = c('L'), G = c('M'),
+                  H = c('N', 'O', 'P'), I = c('O', 'P', 'Q'), J = c('P', 'Q'),
+                  K = c('Q'), L = c('R'), M = c('S'),
+                  N = c('T', 'U', 'V', 'W'), O = c('U', 'V', 'W'), P = c('V', 'W'),
+                  Q = c('W', 'X'), R = c('X'), S = c('Y'), T = c('Z'), U = c('Z'),
+                  V = c('Z'), W = c('Z'), X = c('Z'), Y = c('Z'), Z = c('Z'))
+  }
+  else if (move_option == 3) {
+    moves <- list(A = c('B', 'C', 'D', 'E'), B = c('H', 'I', 'J'), C = c('I', 'J', 'K'),
+                  D = c('J', 'K'), E = c('K'), F = c('L'), G = c('M'),
+                  H = c('N', 'O', 'P'), I = c('O', 'P', 'Q'), J = c('P', 'Q'),
+                  K = c('Q'), L = c('R'), M = c('S'),
+                  N = c('T', 'U', 'V', 'W'), O = c('U', 'V', 'W'), P = c('V', 'W'),
+                  Q = c('W', 'X'), R = c('X'), S = c('Y'), T = c('Z'), U = c('Z'),
+                  V = c('Z'), W = c('Z'), X = c('Z'), Y = c('Z'), Z = c('Z'))
+  }
+  else if (move_option == 4) {
+    moves <- list(A = c('B', 'C', 'D', 'E'), B = c('H', 'I', 'J', 'K'),
+                  C = c('I', 'J', 'K'), D = c('J', 'K'), E = c('K'), F = c('L'), G = c('M'),
+                  H = c('N', 'O', 'P', 'Q'), I = c('O', 'P', 'Q'), J = c('P', 'Q'),
+                  K = c('Q'), L = c('R'), M = c('S'),
+                  N = c('T', 'U', 'V', 'W'), O = c('U', 'V', 'W'), P = c('V', 'W', 'X'),
+                  Q = c('W', 'X'), R = c('X'), S = c('Y'), T = c('Z'), U = c('Z'),
+                  V = c('Z'), W = c('Z'), X = c('Z'), Y = c('Z'), Z = c('Z'))
+  }
+
+  scores1 <- rep(NA, 45)
+  scores2 <- rep(NA, 45)
+  scores <- rep(NA, 45)
+
+  positions1 <- rep(NA, 45)
+  positions2 <- rep(NA, 45)
+  counts1 <- rep(NA, 45)
+  counts2 <- rep(NA, 45)
+
+  if (!turn) {
+    decisions$roll2 = rep(NA, 45)
+    decisions$roll_color2 = rep('skip', 45)
+  }
+
+  state_r <- 'Z'
+  state_y <- 'Z'
+  state_g <- 'Z'
+  state_b <- 'Z'
+
+  for (i in 1:25) {
+    if (sum(row_r == states[[i]]) == 2) state_r <- names(states)[i]
+    if (sum(row_y == states[[i]]) == 2) state_y <- names(states)[i]
+    if (sum(c(rpc(row_g[1]), row_g[2]) == states[[i]]) == 2) state_g <- names(states)[i]
+    if (sum(c(rpc(row_b[1]), row_b[2]) == states[[i]]) == 2) state_b <- names(states)[i]
+  }
+
+  for (i in 1:45) {
+    if (decisions$roll_color1[i] == 'skip') {
+      scores1[i] <- 0
+    }
+    else if (decisions$roll_color1[i] == 'red') {
+      state1 <- 'Z'
+      for (j in 1:25) {
+        if (sum(c(decisions$roll1[i], row_r[2] + 1) == states[[j]]) == 2)
+          state1 <- names(states)[j]
+      }
+      if (state1 %in% moves[[state_r]]) {
+        scores1[i] <- gsc2(decisions$roll1[i] - row_r[1])
+        positions1[i] <- decisions$roll1[i]
+        counts1[i] <- row_r[2] + 1
+      }
+    }
+    else if (decisions$roll_color1[i] == 'yellow') {
+      state1 <- 'Z'
+      for (j in 1:25) {
+        if (sum(c(decisions$roll1[i], row_y[2] + 1) == states[[j]]) == 2)
+          state1 <- names(states)[j]
+      }
+      if (state1 %in% moves[[state_y]]) {
+        scores1[i] <- gsc2(decisions$roll1[i] - row_y[1])
+        positions1[i] <- decisions$roll1[i]
+        counts1[i] <- row_y[2] + 1
+      }
+    }
+    else if (decisions$roll_color1[i] == 'green') {
+      state1 <- 'Z'
+      for (j in 1:25) {
+        if (sum(c(rpc(decisions$roll1[i]), row_g[2] + 1) == states[[j]]) == 2)
+          state1 <- names(states)[j]
+      }
+      if (state1 %in% moves[[state_g]]) {
+        scores1[i] <- gsc2(row_g[1] - decisions$roll1[i])
+        positions1[i] <- rpc(decisions$roll1[i])
+        counts1[i] <- row_g[2] + 1
+      }
+    }
+    else if (decisions$roll_color1[i] == 'blue') {
+      state1 <- 'Z'
+      for (j in 1:25) {
+        if (sum(c(rpc(decisions$roll1[i]), row_b[2] + 1) == states[[j]]) == 2)
+          state1 <- names(states)[j]
+      }
+      if (state1 %in% moves[[state_b]]) {
+        scores1[i] <- gsc2(row_b[1] - decisions$roll1[i])
+        positions1[i] <- rpc(decisions$roll1[i])
+        counts1[i] <- row_b[2] + 1
+      }
+    }
+
+    if (decisions$roll_color2[i] == 'skip') {
+      scores2[i] <- 0
+    }
+    else if (decisions$roll_color2[i] == 'red') {
+      state2 <- 'Z'
+      if(decisions$roll_color1[i] == 'red') {
+        for (j in 1:25) {
+          if (sum(c(decisions$roll2[i], row_r[2] + 2) == states[[j]]) == 2)
+            state2 <- names(states)[j]
+        }
+        if (state2 %in% moves[[state1]]) {
+          scores2[i] <- gsc2(decisions$roll2[i] - decisions$roll1[i])
+          positions2[i] <- decisions$roll2[i]
+          counts2[i] <- row_r[2] + 2
+        }
+      }
+      else {
+        for (j in 1:25) {
+          if (sum(c(decisions$roll2[i], row_r[2] + 1) == states[[j]]) == 2)
+            state2 <- names(states)[j]
+        }
+        if (state2 %in% moves[[state_r]]) {
+          scores2[i] <- gsc2(decisions$roll2[i] - row_r[1])
+          positions2[i] <- decisions$roll2[i]
+          counts2[i] <- row_r[2] + 1
+        }
+      }
+    }
+    else if (decisions$roll_color2[i] == 'yellow') {
+      state2 <- 'Z'
+      if(decisions$roll_color1[i] == 'yellow') {
+        for (j in 1:25) {
+          if (sum(c(decisions$roll2[i], row_y[2] + 2) == states[[j]]) == 2)
+            state2 <- names(states)[j]
+        }
+        if (state2 %in% moves[[state1]]) {
+          scores2[i] <- gsc2(decisions$roll2[i] - decisions$roll1[i])
+          positions2[i] <- decisions$roll2[i]
+          counts2[i] <- row_y[2] + 2
+        }
+      }
+      else {
+        for (j in 1:25) {
+          if (sum(c(decisions$roll2[i], row_y[2] + 1) == states[[j]]) == 2)
+            state2 <- names(states)[j]
+        }
+        if (state2 %in% moves[[state_y]]) {
+          scores2[i] <- gsc2(decisions$roll2[i] - row_y[1])
+          positions2[i] <- decisions$roll2[i]
+          counts2[i] <- row_y[2] + 1
+        }
+      }
+    }
+    else if (decisions$roll_color2[i] == 'green') {
+      state2 <- 'Z'
+      if(decisions$roll_color1[i] == 'green') {
+        for (j in 1:25) {
+          if (sum(c(rpc(decisions$roll2[i]), row_g[2] + 2) == states[[j]]) == 2)
+            state2 <- names(states)[j]
+        }
+        if (state2 %in% moves[[state1]]) {
+          scores2[i] <- gsc2(decisions$roll1[i] - decisions$roll2[i])
+          positions2[i] <- rpc(decisions$roll2[i])
+          counts2[i] <- row_g[2] + 2
+        }
+      }
+      else {
+        for (j in 1:25) {
+          if (sum(c(rpc(decisions$roll2[i]), row_g[2] + 1) == states[[j]]) == 2)
+            state2 <- names(states)[j]
+        }
+        if (state2 %in% moves[[state_g]]) {
+          scores2[i] <- gsc2(row_g[1] - decisions$roll2[i])
+          positions2[i] <- rpc(decisions$roll2[i])
+          counts2[i] <- row_g[2] + 1
+        }
+      }
+    }
+    else if (decisions$roll_color2[i] == 'blue') {
+      state2 <- 'Z'
+      if(decisions$roll_color1[i] == 'blue') {
+        for (j in 1:25) {
+          if (sum(c(rpc(decisions$roll2[i]), row_b[2] + 2) == states[[j]]) == 2)
+            state2 <- names(states)[j]
+        }
+        if (state2 %in% moves[[state1]]) {
+          scores2[i] <- gsc2(decisions$roll1[i] - decisions$roll2[i])
+          positions2[i] <- rpc(decisions$roll2[i])
+          counts2[i] <- row_b[2] + 2
+        }
+      }
+      else {
+        for (j in 1:25) {
+          if (sum(c(rpc(decisions$roll2[i]), row_b[2] + 1) == states[[j]]) == 2)
+            state2 <- names(states)[j]
+        }
+        if (state2 %in% moves[[state_b]]) {
+          scores2[i] <- gsc2(row_b[1] - decisions$roll2[i])
+          positions2[i] <- rpc(decisions$roll2[i])
+          counts2[i] <- row_b[2] + 1
+        }
+      }
+    }
+
+    if (decisions$roll_color1[i] != 'skip') {
+      if (!is.na(scores1[i]) &
+          ((scores1[i] <= 0 | scores1[i] >= 7) | (positions1[i] == 12 & counts1[i] < 6)))
+        scores1[i] <- NA
+    }
+    if (decisions$roll_color2[i] != 'skip') {
+      if (!is.na(scores2[i]) &
+          ((scores2[i] <= 0 | scores2[i] >= 7) | (positions2[i] == 12 & counts2[i] < 6)))
+        scores2[i] <- NA
+    }
+
+    scores[i] <- scores1[i] + scores2[i]
+
+    # lock row if possible
+    # if (((decisions$roll_color1[i] %in% c('red', 'yellow') & decisions$roll1[i] == 12) |
+    #     (decisions$roll_color1[i] %in% c('green', 'blue') & decisions$roll1[i] == 2)) &
+    #     !is.na(scores[i]))
+    #   scores[i] <- scores[i] + 100
+    # if (((decisions$roll_color2[i] %in% c('red', 'yellow') & decisions$roll2[i] == 12) |
+    #     (decisions$roll_color2[i] %in% c('green', 'blue') & decisions$roll2[i] == 2)) &
+    #     !is.na(scores[i]))
+    #   scores[i] <- scores[i] + 100
+  }
+
+  # calculating scores
+  best_score_index <- which(scores == max(na.omit(scores)))
+  if (length(best_score_index) > 1) best_score_index <- sample(best_score_index, 1)
+
+  return(decisions[best_score_index,])
+}
+```
+
+## Strategy 3: Score Based (with decision weights and table)
+
+Decision weights: Determines the probability of making a decision
+
+Table: Records the decisions based on a board state for future reference
+
+```{r}
+strategy3 <- function (row_r, row_y, row_g, row_b, decisions, skip_score = 5.5, table, state,
+                       turn = TRUE) {
+  # return move from table is strategy is detected
+  for (i in 1:nrow(table)) {
+    if (sum(state == table[i, 1:14]) == 14) return(list(table[i, 15:18], table))
+  }
+
+  if (skip_score == 0) {
+    gap_score <- 0.5
+    position_score <- 0.5
+    count_score <- 0.5
+  }
+  gap_scores1 <- rep(NA, 45)
+  gap_scores2 <- rep(NA, 45)
+  position_scores1 <- rep(NA, 45)
+  position_scores2 <- rep(NA, 45)
+  count_scores1 <- rep(NA, 45)
+  count_scores2 <- rep(NA, 45)
+
+  if (!turn) {
+    decisions$roll2 = rep(NA, 45)
+    decisions$roll_color2 = rep('skip', 45)
+  }
+
+  for (i in 1:45) {
+    if (decisions$roll_color1[i] == 'skip') {
+      gap_scores1[i] <- skip_score * 9/10
+      position_scores1[i] <- skip_score
+      count_scores1[i] <- skip_score
+    }
+    else if (decisions$roll_color1[i] == 'red') {
+      gap_scores1[i] <- gsc(decisions$roll1[i] - row_r[1] - 1)
+      position_scores1[i] <- psc(decisions$roll1[i] - 2)
+      count_scores1[i] <- row_r[2]
+    }
+    else if (decisions$roll_color1[i] == 'yellow') {
+      gap_scores1[i] <- gsc(decisions$roll1[i] - row_y[1] - 1)
+      position_scores1[i] <- psc(decisions$roll1[i] - 2)
+      count_scores1[i] <- row_y[2]
+    }
+    else if (decisions$roll_color1[i] == 'green') {
+      gap_scores1[i] <- gsc(row_g[1] - decisions$roll1[i] - 1)
+      position_scores1[i] <- psc(rpc(decisions$roll1[i]) - 2)
+      count_scores1[i] <- row_g[2]
+    }
+    else if (decisions$roll_color1[i] == 'blue') {
+      gap_scores1[i] <- gsc(row_b[1] - decisions$roll1[i] - 1)
+      position_scores1[i] <- psc(rpc(decisions$roll1[i]) - 2)
+      count_scores1[i] <- row_b[2]
+    }
+
+    if (decisions$roll_color2[i] == 'skip') {
+      gap_scores2[i] <- skip_score * 9/10
+      position_scores2[i] <- skip_score
+      count_scores2[i] <- skip_score
+    }
+    else if (decisions$roll_color2[i] == 'red') {
+      if (decisions$roll_color1[i] == 'red') {
+        gap_scores2[i] <- gsc(decisions$roll2[i] - decisions$roll1[i] - 1)
+        position_scores2[i] <- psc(decisions$roll2[i] - 2)
+        count_scores2[i] <- row_r[2] + 1
+      }
+      else {
+        gap_scores2[i] <- gsc(decisions$roll2[i] - row_r[1] - 1)
+        position_scores2[i] <- psc(decisions$roll2[i] - 2)
+        count_scores2[i] <- row_r[2]
+      }
+    }
+    else if (decisions$roll_color2[i] == 'yellow') {
+      if (decisions$roll_color1[i] == 'yellow') {
+        gap_scores2[i] <- gsc(decisions$roll2[i] - decisions$roll1[i] - 1)
+        position_scores2[i] <- psc(decisions$roll2[i] - 2)
+        count_scores2[i] <- row_y[2] + 1
+      }
+      else {
+        gap_scores2[i] <- gsc(decisions$roll2[i] - row_y[1] - 1)
+        position_scores2[i] <- psc(decisions$roll2[i] - 2)
+        count_scores2[i] <- row_y[2]
+      }
+    }
+    else if (decisions$roll_color2[i] == 'green') {
+      if (decisions$roll_color1[i] == 'green') {
+        gap_scores2[i] <- gsc(decisions$roll1[i] - decisions$roll2[i] - 1)
+        position_scores2[i] <- psc(rpc(decisions$roll2[i]) - 2)
+        count_scores2[i] <- row_g[2] + 1
+      }
+      else {
+        gap_scores2[i] <- gsc(row_g[1] - decisions$roll2[i] - 1)
+        position_scores2[i] <- psc(rpc(decisions$roll2[i]) - 2)
+        count_scores2[i] <- row_g[2]
+      }
+    }
+    else if (decisions$roll_color2[i] == 'blue') {
+      if (decisions$roll_color1[i] == 'blue') {
+        gap_scores2[i] <- gsc(decisions$roll1[i] - decisions$roll2[i] - 1)
+        position_scores2[i] <- psc(rpc(decisions$roll2[i]) - 2)
+        count_scores2[i] <- row_b[2] + 1
+      }
+      else {
+        gap_scores2[i] <- gsc(row_b[1] - decisions$roll2[i] - 1)
+        position_scores2[i] <- psc(rpc(decisions$roll2[i]) - 2)
+        count_scores2[i] <- row_b[2]
+      }
+    }
+
+    if (decisions$roll_color1[i] != 'skip') {
+      if (!is.na(gap_scores1[i]) & (gap_scores1[i] < 0 | gap_scores1[i] >= 10))
+        gap_scores1[i] <- NA
+      if (!is.na(position_scores1[i]) &
+          ((position_scores1[i] < 0 | position_scores1[i] >= 11) |
+           (position_scores1[i] == 0 & count_scores1[i] < 5)))
+        position_scores1[i] <- NA
+      if (!is.na(count_scores1[i]) & (count_scores1[i] < 0 | count_scores1[i] >= 11))
+        count_scores1[i] <- NA
+    }
+
+    if (decisions$roll_color2[i] != 'skip') {
+      if (!is.na(gap_scores2[i]) & (gap_scores2[i] < 0 | gap_scores2[i] >= 10))
+        gap_scores2[i] <- NA
+      if (!is.na(position_scores2[i]) &
+          ((position_scores2[i] < 0 | position_scores2[i] >= 11) |
+           (position_scores2[i] == 0 & count_scores2[i] < 5)))
+        position_scores2[i] <- NA
+      if (!is.na(count_scores2[i]) & (count_scores2[i] < 0 | count_scores2[i] >= 11))
+        count_scores2[i] <- NA
+    }
+  }
+
+  # calculating scores
+  gap_scores <- (gap_scores1 + gap_scores2) * 10/9
+  position_scores <- position_scores1 + position_scores2
+  count_scores <- count_scores1 + count_scores2
+  total_scores <- gap_scores + position_scores + count_scores
+  
+  # adjusting total scores to only include the best scores
+  total_scores[is.na(total_scores)] <- 0
+  best_scores <- sort(total_scores, index.return=TRUE, decreasing=TRUE)
+  best_indices <- lapply(best_scores, `[`,
+                         best_scores$x %in% head(unique(best_scores$x), 2))$ix
+  total_scores[-best_indices] <- 0
+
+  # finding score weights
+  weights <- total_scores / sum(total_scores)
+
+  # finding score index
+  score_index <- sample(1:45, 1, prob=weights)
+
+  # update table
+  new_row <- c(state, decisions[score_index,])
+  names(new_row) <- names(table)
+  table <- rbind(table, new_row)
+
+  return(list(decisions[score_index,], table))
+}
+```
+
+# Single Player Game
+
+```{r}
+single_player <- function(strategy, priority_order = '123', skip_score = 5.5,
+                          skip_adjustment = 0, weight = 1/200, move_option = 3, table = NULL) {
+  penalty <- 0
+  lock <- 0
+  locks <- rep(FALSE, 4)
+  row_r <- c(1, 0)
+  row_y <- c(1, 0)
+  row_g <- c(13, 0)
+  row_b <- c(13, 0)
+
+  iter <- 0
+  while (penalty < 4 & lock < 2) {
+    iter <- iter + 1
+
+    # dice roll
+    die_w1 <- sample(1:6, 1)
+    die_w2 <- sample(1:6, 1)
+    die_r <- sample(1:6, 1)
+    die_y <- sample(1:6, 1)
+    die_g <- sample(1:6, 1)
+    die_b <- sample(1:6, 1)
+
+    # roll 1
+    roll1 <- die_w1 + die_w2
+
+    # roll 2 options
+    roll_r1 <- die_w1 + die_r
+    roll_r2 <- die_w2 + die_r
+    roll_y1 <- die_w1 + die_y
+    roll_y2 <- die_w2 + die_y
+    roll_g1 <- die_w1 + die_g
+    roll_g2 <- die_w2 + die_g
+    roll_b1 <- die_w1 + die_b
+    roll_b2 <- die_w2 + die_b
+
+    # decisions
+    roll1s <- c(NA, rep(roll1, 4), rep(NA, 8), rep(roll1, 32))
+    roll_colors1 <- c('skip', 'red', 'yellow', 'green', 'blue', rep('skip', 8),
+                      rep('red', 8), rep('yellow', 8), rep('green', 8), rep('blue', 8))
+    roll2s <- c(rep(NA, 5),
+                rep(c(roll_r1, roll_r2, roll_y1, roll_y2,
+                      roll_g1, roll_g2, roll_b1, roll_b2), 5))
+    roll_colors2 <- c(rep('skip', 5),
+                      rep(c(rep('red', 2), rep('yellow', 2),
+                            rep('green', 2), rep('blue', 2)), 5))
+    decisions <- data.frame(roll1 = roll1s, roll_color1 = roll_colors1,
+                            roll2 = roll2s, roll_color2 = roll_colors2)
+    for (i in 1:4) {
+      if (i == 1) color = 'red'
+      else if (i == 2) color = 'yellow'
+      else if (i == 3) color = 'green'
+      else if (i == 4) color = 'blue'
+
+      if (locks[i]) {
+        for (j in 1:45) {
+          if (decisions$roll_color1[j] == color) {
+            decisions$roll1[j] <- NA
+            decisions$roll_color1[j] <- 'skip'
+          }
+          if (decisions$roll_color2[j] == color) {
+            decisions$roll2[j] <- NA
+            decisions$roll_color2[j] <- 'skip'
+          }
+        }
+      }
+    }
+
+    # strategy
+    if (strategy == 0) {
+      decision <- strategy0(row_r, row_y, row_g, row_b, decisions)
+    }
+    else if (strategy == 1) {
+      decision <- strategy1(row_r, row_y, row_g, row_b, decisions, priority_order,
+                            skip_score, skip_adjustment, weight, penalty)
+    }
+    else if (strategy == 2) {
+      decision <- strategy2(row_r, row_y, row_g, row_b, decisions, move_option)
+    }
+    else if(strategy == 3) {
+      state <- c(row_r, row_y, row_g, row_b, paste(min(die_w1, die_w2), sum(die_w1, die_w2)),
+                 die_r, die_y, die_g, die_b, penalty)
+      output <- strategy3(row_r, row_y, row_g, row_b, decisions, skip_score, table, state)
+      decision <- output[[1]]
+      table <- output[[2]]
+    }
+    roll1 <- decision[[1]]
+    roll_color1 <- decision[[2]]
+    roll2 <- decision[[3]]
+    roll_color2 <- decision[[4]]
+
+    # roll 1 decision
+    if (roll_color1 == 'red') row_r <- c(roll1, row_r[2] + 1)
+    else if (roll_color1 == 'yellow') row_y <- c(roll1, row_y[2] + 1)
+    else if (roll_color1 == 'green') row_g <- c(roll1, row_g[2] + 1)
+    else if (roll_color1 == 'blue') row_b <- c(roll1, row_b[2] + 1)
+
+    # roll 2 decision
+    if (roll_color2 == 'red') row_r <- c(roll2, row_r[2] + 1)
+    else if (roll_color2 == 'yellow') row_y <- c(roll2, row_y[2] + 1)
+    else if (roll_color2 == 'green') row_g <- c(roll2, row_g[2] + 1)
+    else if (roll_color2 == 'blue') row_b <- c(roll2, row_b[2] + 1)
+
+    # penalty
+    if (roll_color1 == 'skip' & roll_color2 == 'skip') penalty <- penalty + 1
+    
+    # lock
+    if (!locks[1] & row_r[1] == 12 & row_r[2] > 5 & lock < 2) {
+      locks[1] <- TRUE
+      lock <- lock + 1
+      row_r[2] <- row_r[2] + 1
+    }
+    if (!locks[2] & row_y[1] == 12 & row_y[2] > 5 & lock < 2) {
+      locks[2] <- TRUE
+      lock <- lock + 1
+      row_y[2] <- row_y[2] + 1
+    }
+    if (!locks[3] & row_g[1] == 2 & row_g[2] > 5 & lock < 2) {
+      locks[3] <- TRUE
+      lock <- lock + 1
+      row_g[2] <- row_g[2] + 1
+    }
+    if (!locks[4] & row_b[1] == 2 & row_b[2] > 5 & lock < 2) {
+      locks[4] <- TRUE
+      lock <- lock + 1
+      row_b[2] <- row_b[2] + 1
+    }
+  }
+
+  # calculate score
+  score <- row_score(row_r[2]) + row_score(row_y[2]) + row_score(row_g[2]) +
+    row_score(row_b[2]) - penalty*5
+
+  return(list(score, iter, row_r, row_y, row_g, row_b, lock, penalty, table))
+}
+```
+
+# Multiplayer Game
+
+```{r}
+multiplayer <- function(num_players, strategies, priority_orders, skip_scores,
+                        skip_adjustments, weights, move_options) {
+  turn <- sample(1:num_players, 1)
+  penalties <- rep(0, num_players)
+  lock <- 0
+  locks <- rep(FALSE, 4)
+  row_r <- vector("list", length = num_players)
+  row_y <- vector("list", length = num_players)
+  row_g <- vector("list", length = num_players)
+  row_b <- vector("list", length = num_players)
+
+  for (i in 1:num_players) {
+    row_r[[i]] <- c(1, 0)
+    row_y[[i]] <- c(1, 0)
+    row_g[[i]] <- c(13, 0)
+    row_b[[i]] <- c(13, 0)
+  }
+
+  iter <- 0
+  while (max(penalties) < 4 & lock < 2) {
+    iter <- iter + 1
+
+    # dice roll
+    die_w1 <- sample(1:6, 1)
+    die_w2 <- sample(1:6, 1)
+    die_r <- sample(1:6, 1)
+    die_y <- sample(1:6, 1)
+    die_g <- sample(1:6, 1)
+    die_b <- sample(1:6, 1)
+
+    # roll 1
+    roll1 <- die_w1 + die_w2
+
+    # roll 2 options
+    roll_r1 <- die_w1 + die_r
+    roll_r2 <- die_w2 + die_r
+    roll_y1 <- die_w1 + die_y
+    roll_y2 <- die_w2 + die_y
+    roll_g1 <- die_w1 + die_g
+    roll_g2 <- die_w2 + die_g
+    roll_b1 <- die_w1 + die_b
+    roll_b2 <- die_w2 + die_b
+
+    # decisions
+    roll1s <- c(NA, rep(roll1, 4), rep(NA, 8), rep(roll1, 32))
+    roll_colors1 <- c('skip', 'red', 'yellow', 'green', 'blue', rep('skip', 8),
+                      rep('red', 8), rep('yellow', 8), rep('green', 8), rep('blue', 8))
+    roll2s <- c(rep(NA, 5),
+                rep(c(roll_r1, roll_r2, roll_y1, roll_y2,
+                      roll_g1, roll_g2, roll_b1, roll_b2), 5))
+    roll_colors2 <- c(rep('skip', 5),
+                      rep(c(rep('red', 2), rep('yellow', 2),
+                            rep('green', 2), rep('blue', 2)), 5))
+    decisions <- data.frame(roll1 = roll1s, roll_color1 = roll_colors1,
+                            roll2 = roll2s, roll_color2 = roll_colors2)
+    for (i in 1:4) {
+      if (i == 1) color = 'red'
+      else if (i == 2) color = 'yellow'
+      else if (i == 3) color = 'green'
+      else if (i == 4) color = 'blue'
+
+      if (locks[i]) {
+        for (j in 1:45) {
+          if (decisions$roll_color1[j] == color) {
+            decisions$roll1[j] <- NA
+            decisions$roll_color1[j] <- 'skip'
+          }
+          if (decisions$roll_color2[j] == color) {
+            decisions$roll2[j] <- NA
+            decisions$roll_color2[j] <- 'skip'
+          }
+        }
+      }
+    }
+    locks_temp <- rep(FALSE, 4)
+
+    for (i in 1:num_players) {
+      # strategies
+      if (strategies[i] == 0) {
+        decision <- strategy0(row_r[[i]], row_y[[i]], row_g[[i]], row_b[[i]], decisions,
+                              (i == turn))
+      }
+      else if (strategies[i] == 1) {
+        decision <- strategy1(row_r[[i]], row_y[[i]], row_g[[i]], row_b[[i]], decisions,
+                              priority_orders[i], skip_scores[i], skip_adjustments[i],
+                              weights[i], penalties[i], (i == turn))
+      }
+      else if (strategies[i] == 2) {
+        decision <- strategy2(row_r[[i]], row_y[[i]], row_g[[i]], row_b[[i]], decisions,
+                              move_options[i], (i == turn))
+      }
+      roll1 <- decision[[1]]
+      roll_color1 <- decision[[2]]
+      roll2 <- decision[[3]]
+      roll_color2 <- decision[[4]]
+
+      # roll 1 decision
+      if (roll_color1 == 'red') row_r[[i]] <- c(roll1, row_r[[i]][2] + 1)
+      else if (roll_color1 == 'yellow') row_y[[i]] <- c(roll1, row_y[[i]][2] + 1)
+      else if (roll_color1 == 'green') row_g[[i]] <- c(roll1, row_g[[i]][2] + 1)
+      else if (roll_color1 == 'blue') row_b[[i]] <- c(roll1, row_b[[i]][2] + 1)
+
+      # roll 2 decision
+      if (roll_color2 == 'red') row_r[[i]] <- c(roll2, row_r[[i]][2] + 1)
+      else if (roll_color2 == 'yellow') row_y[[i]] <- c(roll2, row_y[[i]][2] + 1)
+      else if (roll_color2 == 'green') row_g[[i]] <- c(roll2, row_g[[i]][2] + 1)
+      else if (roll_color2 == 'blue') row_b[[i]] <- c(roll2, row_b[[i]][2] + 1)
+
+      # penalty
+      if (i == turn & roll_color1 == 'skip' & roll_color2 == 'skip')
+        penalties[i] <- penalties[i] + 1
+
+      # lock
+      if (!locks[1] & row_r[[i]][1] == 12 & row_r[[i]][2] > 5 & lock < 2) {
+        locks_temp[1] <- TRUE
+        row_r[[i]][2] <- row_r[[i]][2] + 1
+      }
+      if (!locks[2] & row_y[[i]][1] == 12 & row_y[[i]][2] > 5 & lock < 2) {
+        locks_temp[2] <- TRUE
+        row_y[[i]][2] <- row_y[[i]][2] + 1
+      }
+      if (!locks[3] & row_g[[i]][1] == 2 & row_g[[i]][2] > 5 & lock < 2) {
+        locks_temp[3] <- TRUE
+        row_g[[i]][2] <- row_g[[i]][2] + 1
+      }
+      if (!locks[4] & row_b[[i]][1] == 2 & row_b[[i]][2] > 5 & lock < 2) {
+        locks_temp[4] <- TRUE
+        row_b[[i]][2] <- row_b[[i]][2] + 1
+      }
+    }
+
+    for (i in 1:4) {
+      if (!locks[i] & locks_temp[i]) {
+        locks[i] <- TRUE
+        lock <- lock + 1
+      }
+    }
+
+    if (turn == num_players) turn <- 1
+    else turn <- turn + 1
+  }
+
+  # calculate scores and winner
+  scores <- rep(NA, num_players)
+  for (i in 1:num_players) {
+    scores[i] <- row_score(row_r[[i]][2]) + row_score(row_y[[i]][2]) +
+      row_score(row_g[[i]][2]) + row_score(row_b[[i]][2]) - penalties[i]*5
+  }
+  winner <- which(scores == max(scores))
+  
+  if (length(winner) > 1) return(list('Tie', scores, iter))
+  return(list(paste('Player', winner), scores, iter))
+}
+```
+
+# Simulation and Results
+
+## Single Player
+
+#### Strategy 0
+
+```{r}
+n <- 10000
+scores <- c()
+num_rolls <- c()
+row_r1 <- c()
+row_r2 <- c()
+row_y1 <- c()
+row_y2 <- c()
+row_g1 <- c()
+row_g2 <- c()
+row_b1 <- c()
+row_b2 <- c()
+locks <- c()
+penalties <- c()
+
+for (i in 1:n) {
+  output <- single_player(0)
+  scores <- append(scores, output[[1]])
+  num_rolls <- append(num_rolls, output[[2]])
+  row_r1 <- append(row_r1, output[[3]][1])
+  row_r2 <- append(row_r2, output[[3]][2])
+  row_y1 <- append(row_y1, output[[4]][1])
+  row_y2 <- append(row_y2, output[[4]][2])
+  row_g1 <- append(row_g1, output[[5]][1])
+  row_g2 <- append(row_g2, output[[5]][2])
+  row_b1 <- append(row_b1, output[[6]][1])
+  row_b2 <- append(row_b2, output[[6]][2])
+  locks <- append(locks, output[[7]])
+  penalties <- append(penalties, output[[8]])
+}
+
+results <- data.frame(score = scores, num_rolls = num_rolls,
+                      red_position = row_r1, red_x = row_r2,
+                      yellow_position = row_y1, yellow_x = row_y2,
+                      green_position = row_g1, green_x = row_b2,
+                      blue_position = row_b1, blue_x = row_b2,
+                      locks = locks, penalties = penalties) %>%
+  tibble()
+```
+
+```{r}
+# Scores
+summary(scores)
+ggplot(results) +
+  geom_histogram(aes(x = score), fill = 'red', alpha = 1, bins = 30) +
+  labs(title = 'Histogram of Scores', x = 'Score', y = '') +
+  theme_bw()
+
+# Number of Rolls
+summary(num_rolls)
+ggplot(results) +
+  geom_histogram(aes(x = num_rolls), fill = 'black', alpha = 1, bins = 15) +
+  labs(title = 'Histogram of Roll Count', x = 'Rolls', y = '') +
+  theme_bw()
+
+# Other
+cor(scores, num_rolls)
+table(results$locks, results$penalties)
+plot(scores, num_rolls, pch = 16, main = 'Scores by Number of Rolls',
+     xlab = 'Scores', ylab = 'Rolls')
+```
+
+#### Strategy 1
+
+```{r}
+n <- 10000
+scores <- c()
+num_rolls <- c()
+row_r1 <- c()
+row_r2 <- c()
+row_y1 <- c()
+row_y2 <- c()
+row_g1 <- c()
+row_g2 <- c()
+row_b1 <- c()
+row_b2 <- c()
+locks <- c()
+penalties <- c()
+
+for (i in 1:n) {
+  output <- single_player(1, skip_score = 5, weight = 1/300)
+  scores <- append(scores, output[[1]])
+  num_rolls <- append(num_rolls, output[[2]])
+  row_r1 <- append(row_r1, output[[3]][1])
+  row_r2 <- append(row_r2, output[[3]][2])
+  row_y1 <- append(row_y1, output[[4]][1])
+  row_y2 <- append(row_y2, output[[4]][2])
+  row_g1 <- append(row_g1, output[[5]][1])
+  row_g2 <- append(row_g2, output[[5]][2])
+  row_b1 <- append(row_b1, output[[6]][1])
+  row_b2 <- append(row_b2, output[[6]][2])
+  locks <- append(locks, output[[7]])
+  penalties <- append(penalties, output[[8]])
+}
+
+results <- data.frame(score = scores, num_rolls = num_rolls,
+                      red_position = row_r1, red_x = row_r2,
+                      yellow_position = row_y1, yellow_x = row_y2,
+                      green_position = row_g1, green_x = row_b2,
+                      blue_position = row_b1, blue_x = row_b2,
+                      locks = locks, penalties = penalties) %>%
+  tibble()
+```
+
+```{r}
+# Scores
+summary(scores)
+ggplot(results) +
+  geom_histogram(aes(x = score), fill = 'red', alpha = 1) +
+  labs(title = 'Histogram of Scores', x = 'Score', y = '', bins = 30) +
+  theme_bw()
+
+# Number of Rolls
+summary(num_rolls)
+ggplot(results) +
+  geom_histogram(aes(x = num_rolls), fill = 'black', alpha = 1, bins = 18) +
+  labs(title = 'Histogram of Roll Count', x = 'Rolls', y = '') +
+  theme_bw()
+
+# Other
+cor(scores, num_rolls)
+table(results$locks, results$penalties)
+plot(scores, num_rolls, pch = 16, main = 'Scores by Number of Rolls',
+     xlab = 'Scores', ylab = 'Rolls')
+```
+
+#### Strategy 2
+
+```{r}
+n <- 10000
+scores <- c()
+num_rolls <- c()
+row_r1 <- c()
+row_r2 <- c()
+row_y1 <- c()
+row_y2 <- c()
+row_g1 <- c()
+row_g2 <- c()
+row_b1 <- c()
+row_b2 <- c()
+locks <- c()
+penalties <- c()
+
+for (i in 1:n) {
+  output <- single_player(2, move_option = 4)
+  scores <- append(scores, output[[1]])
+  num_rolls <- append(num_rolls, output[[2]])
+  row_r1 <- append(row_r1, output[[3]][1])
+  row_r2 <- append(row_r2, output[[3]][2])
+  row_y1 <- append(row_y1, output[[4]][1])
+  row_y2 <- append(row_y2, output[[4]][2])
+  row_g1 <- append(row_g1, output[[5]][1])
+  row_g2 <- append(row_g2, output[[5]][2])
+  row_b1 <- append(row_b1, output[[6]][1])
+  row_b2 <- append(row_b2, output[[6]][2])
+  locks <- append(locks, output[[7]])
+  penalties <- append(penalties, output[[8]])
+}
+
+results <- data.frame(score = scores, num_rolls = num_rolls,
+                      red_position = row_r1, red_x = row_r2,
+                      yellow_position = row_y1, yellow_x = row_y2,
+                      green_position = row_g1, green_x = row_b2,
+                      blue_position = row_b1, blue_x = row_b2,
+                      locks = locks, penalties = penalties) %>%
+  tibble()
+```
+
+```{r}
+# Scores
+summary(scores)
+ggplot(results) +
+  geom_histogram(aes(x = score), fill = 'red', alpha = 1, bins = 30) +
+  labs(title = 'Histogram of Scores', x = 'Score', y = '') +
+  theme_bw()
+
+# Number of Rolls
+summary(num_rolls)
+ggplot(results) +
+  geom_histogram(aes(x = num_rolls), fill = 'black', alpha = 1, bins = 18) +
+  labs(title = 'Histogram of Roll Count', x = 'Rolls', y = '') +
+  theme_bw()
+
+# Other
+cor(scores, num_rolls)
+table(results$locks, results$penalties)
+plot(scores, num_rolls, pch = 16, main = 'Scores by Number of Rolls',
+     xlab = 'Scores', ylab = 'Rolls')
+```
+
+#### Strategy 3
+
+```{r}
+n <- 1
+scores <- c()
+num_rolls <- c()
+row_r1 <- c()
+row_r2 <- c()
+row_y1 <- c()
+row_y2 <- c()
+row_g1 <- c()
+row_g2 <- c()
+row_b1 <- c()
+row_b2 <- c()
+locks <- c()
+penalties <- c()
+table <- data.frame(rp = 0, rc = 0, yp = 0, yc = 0, gp = 0, gc = 0, bp = 0, bc = 0,
+                    ws = 0, r = 0, y = 0, g = 0, b = 0, penalty = 0,
+                    roll1 = 0, roll_color1 = 0, roll2 = 0, roll_color2 = 0)
+
+for (i in 1:n) {
+  output <- single_player(3, skip_score = 6, table = table)
+  scores <- append(scores, output[[1]])
+  num_rolls <- append(num_rolls, output[[2]])
+  row_r1 <- append(row_r1, output[[3]][1])
+  row_r2 <- append(row_r2, output[[3]][2])
+  row_y1 <- append(row_y1, output[[4]][1])
+  row_y2 <- append(row_y2, output[[4]][2])
+  row_g1 <- append(row_g1, output[[5]][1])
+  row_g2 <- append(row_g2, output[[5]][2])
+  row_b1 <- append(row_b1, output[[6]][1])
+  row_b2 <- append(row_b2, output[[6]][2])
+  locks <- append(locks, output[[7]])
+  penalties <- append(penalties, output[[8]])
+  table <- output[[9]]
+}
+
+table <- table[-1,]
+row.names(table) <- NULL
+results <- data.frame(score = scores, num_rolls = num_rolls,
+                      red_position = row_r1, red_x = row_r2,
+                      yellow_position = row_y1, yellow_x = row_y2,
+                      green_position = row_g1, green_x = row_b2,
+                      blue_position = row_b1, blue_x = row_b2,
+                      locks = locks, penalties = penalties) %>%
+  tibble()
+```
+
+```{r}
+# Scores
+summary(scores)
+ggplot(results) +
+  geom_histogram(aes(x = score), fill = 'red', alpha = 1) +
+  labs(title = 'Histogram of Scores', x = 'Score', y = 'Frequency') +
+  theme_bw()
+
+# Number of Rolls
+summary(num_rolls)
+ggplot(results) +
+  geom_histogram(aes(x = num_rolls), fill = 'black', alpha = 1, bins = 15) +
+  labs(title = 'Histogram of Roll Count', x = 'Rolls', y = 'Frequency') +
+  theme_bw()
+
+# Other
+cor(scores, num_rolls)
+table(results$locks, results$penalties)
+plot(scores, num_rolls, pch = 16, main = 'Scores by Number of Rolls',
+     xlab = 'Scores', ylab = 'Rolls')
+```
+
+## Two Player
+
+#### Strategy 1 vs. Strategy 1
+
+```{r}
+n <- 10000
+scores <- data.frame(winner = rep(NA, n), p1_score = rep(NA, n), p2_score = rep(NA, n),
+                     num_rolls = rep(NA, n))
+
+for (i in 1:n) {
+  score <- multiplayer(2, c(1, 1), c('123', '123'), c(5, 5), c(0, 0), c(1/300, 1/300),
+                       c(NA, NA))
+  scores$winner[i] <- score[[1]]
+  scores$p1_score[i] <- score[[2]][1]
+  scores$p2_score[i] <- score[[2]][2]
+  scores$num_rolls[i] <- score[[3]]
+}
+```
+
+```{r}
+# Winner Distribution
+table(scores$winner)
+
+# Player Scores
+summary(scores$p1_score)
+summary(scores$p2_score)
+ggplot(scores, aes(fill = '')) +
+  geom_histogram(aes(x = p1_score, fill = 'blue'), color = 'black', alpha = 0.5) +
+  geom_histogram(aes(x = p2_score, fill = 'red'), color = 'black', alpha = 0.5) +
+  labs(title = 'Histogram of Scores', x = 'Score', y = '') +
+  scale_fill_manual(name = 'Strategy', values = c('blue', 'red'), labels = c('S.B.', 'S.B.')) +
+  theme_bw()
+
+plot(scores$p1_score, scores$p2_score, pch = 16, main = 'Player 1 Scores by Player 2 Scores',
+     xlab = 'Player 1 Scores', ylab = 'Player 2 Scores')
+
+# Number of Rolls
+summary(scores$num_rolls)
+ggplot(scores) +
+  geom_histogram(aes(x = num_rolls), fill = 'black', alpha = 1, bins = 18) +
+  labs(title = 'Histogram of Roll Count', x = 'Rolls', y = '') +
+  theme_bw()
+```
+
+#### Strategy 2 vs. Strategy 2
+
+```{r}
+n <- 10000
+scores <- data.frame(winner = rep(NA, n), p1_score = rep(NA, n), p2_score = rep(NA, n),
+                     num_rolls = rep(NA, n))
+
+for (i in 1:n) {
+  score <- multiplayer(2, c(2, 2), c(NA, NA), c(NA, NA), c(NA, NA), c(NA, NA), c(3, 3))
+  scores$winner[i] <- score[[1]]
+  scores$p1_score[i] <- score[[2]][1]
+  scores$p2_score[i] <- score[[2]][2]
+  scores$num_rolls[i] <- score[[3]]
+}
+```
+
+```{r}
+# Winner Distribution
+table(scores$winner)
+
+# Player Scores
+summary(scores$p1_score)
+summary(scores$p2_score)
+ggplot(scores, aes(fill = '')) +
+  geom_histogram(aes(x = p1_score, fill = 'blue'), color = 'black', alpha = 0.5) +
+  geom_histogram(aes(x = p2_score, fill = 'red'), color = 'black', alpha = 0.5) +
+  labs(title = 'Histogram of Scores', x = 'Score', y = '') +
+  scale_fill_manual(name = 'Strategy', values = c('blue', 'red'),
+                    labels = c('R.T.L.', 'R.T.L.')) +
+  theme_bw()
+
+plot(scores$p1_score, scores$p2_score, pch = 16, main = 'Player 1 Scores by Player 2 Scores',
+     xlab = 'Player 1 Scores', ylab = 'Player 2 Scores')
+
+# Number of Rolls
+summary(scores$num_rolls)
+ggplot(scores) +
+  geom_histogram(aes(x = num_rolls), fill = 'black', alpha = 1, bins = 18) +
+  labs(title = 'Histogram of Roll Count', x = 'Rolls', y = '') +
+  theme_bw()
+```
+
+#### Strategy 1 vs. Strategy 2
+
+```{r}
+n <- 10000
+scores <- data.frame(winner = rep(NA, n), p1_score = rep(NA, n), p2_score = rep(NA, n),
+                     num_rolls = rep(NA, n))
+
+for (i in 1:n) {
+  score <- multiplayer(2, c(1, 2), c('123', NA), c(5, NA), c(0, NA), c(1/300, NA), c(NA, 3))
+  scores$winner[i] <- score[[1]]
+  scores$p1_score[i] <- score[[2]][1]
+  scores$p2_score[i] <- score[[2]][2]
+  scores$num_rolls[i] <- score[[3]]
+}
+```
+
+```{r}
+# Winner Distribution
+table(scores$winner)
+
+# Player Scores
+summary(scores$p1_score)
+summary(scores$p2_score)
+ggplot(scores, aes(fill = '')) +
+  geom_histogram(aes(x = p1_score, fill = 'blue'), color = 'black', alpha = 0.5) +
+  geom_histogram(aes(x = p2_score, fill = 'red'), color = 'black', alpha = 0.5) +
+  labs(title = 'Histogram of Scores', x = 'Score', y = '') +
+  scale_fill_manual(name = 'Strategy', values = c('blue', 'red'),
+                    labels = c('S.B.', 'R.T.L.')) +
+  theme_bw()
+
+plot(scores$p1_score, scores$p2_score, pch = 16, main = 'Player 1 Scores by Player 2 Scores',
+     xlab = 'Player 1 Scores', ylab = 'Player 2 Scores')
+
+# Number of Rolls
+summary(scores$num_rolls)
+ggplot(scores) +
+  geom_histogram(aes(x = num_rolls), fill = 'black', alpha = 1, bins = 18) +
+  labs(title = 'Histogram of Roll Count', x = 'Rolls', y = '') +
+  theme_bw()
+```
+
+# Tuning Strategies
+
+## Skip Scores
+
+```{r}
+n <- 1000
+magnitude <- 0.1
+skips <- rep(NA, n)
+mean_scores <- rep(NA, n)
+
+reps <- 100
+scores <- rep(NA, reps)
+current <- 5
+
+for (rep in 1:reps) {
+  output <- single_player(1, skip_score = current, weight = 0)
+  scores[rep] <- output[[1]]
+}
+
+mean_scores[1] <- mean(scores)
+skips[1] <- current
+
+for (i in 2:n) {
+  scores <- rep(NA, reps)
+  
+  direction <- sample(c(-1, 1), 1, prob = c(0.5, 0.5))
+  if (current + magnitude*direction > 0 | current + magnitude*direction < 10)
+    proposed <- current + magnitude*direction
+  else proposed <- current - magnitude*direction
+  
+  for (rep in 1:reps) {
+    output <- single_player(1, skip_score = proposed, weight = 0)
+    scores[rep] <- output[[1]]
+  }
+
+  mean_scores[i] <- mean(scores)
+  prob <- max(0, min(1, mean_scores[i] / mean_scores[i-1]))
+  change <- sample(c(TRUE, FALSE), 1, prob = c(prob, 1-prob))
+  
+  if (change) skips[i] <- current <- proposed
+  else skips[i] <- current
+}
+```
+
+```{r}
+skips %>% round(1) %>% table() %>% sort(decreasing=TRUE) %>% head(10)
+```
+
+```{r}
+val <- skips %>% unique() %>% sort()
+count <- skips %>% round(1) %>% table() / 1000
+
+sum(val*count)
+```
+
+## Probability Weights
+
+```{r}
+n <- 1000
+magnitude <- 10
+weights <- rep(NA, n)
+mean_scores <- rep(NA, n)
+
+reps <- 100
+scores <- rep(NA, reps)
+current <- 300
+
+for (rep in 1:reps) {
+  output <- single_player(1, weight = 1/current)
+  scores[rep] <- output[[1]]
+}
+
+mean_scores[1] <- mean(scores)
+weights[1] <- current
+
+for (i in 2:n) {
+  scores <- rep(NA, reps)
+  
+  direction <- sample(c(-1, 1), 1, prob = c(0.5, 0.5))
+  if (current + magnitude*direction > 0) proposed <- current + magnitude*direction
+  else proposed <- current - magnitude*direction
+  
+  for (rep in 1:reps) {
+    output <- single_player(1, weight = 1/proposed)
+    scores[rep] <- output[[1]]
+  }
+
+  mean_scores[i] <- mean(scores)
+  prob <- max(0, min(1, mean_scores[i] / mean_scores[i-1]))
+  change <- sample(c(TRUE, FALSE), 1, prob = c(prob, 1-prob))
+  
+  if (change) weights[i] <- current <- proposed
+  else weights[i] <- current
+}
+```
+
+```{r}
+weights %>% table() %>% sort(decreasing=TRUE) %>% head(10)
+```
+
+# Building Strategies
+
+```{r}
+mean_scores <- c()
+median_scores <- c()
+mean_num_rolls <- c()
+median_num_rolls <- c()
+strategies <- list()
+
+for (i in 1:100) {
+  scores <- c()
+  num_rolls <- c()
+  table <- data.frame(rp = 0, rc = 0, yp = 0, yc = 0,
+                      gp = 0, gc = 0, bp = 0, bc = 0,
+                      ws = 0, r = 0, y = 0, g = 0, b = 0,
+                      penalty = 0,
+                      roll1 = 0, roll_color1 = 0, roll2 = 0, roll_color2 = 0)
+  
+  for (j in 1:10) {
+    output <- single_player(3, skip_score = 6, table = table)
+    scores <- append(scores, output[[1]])
+    num_rolls <- append(num_rolls, output[[2]])
+    table <- output[[3]]
+  }
+  
+  table <- table[-1,]
+  row.names(table) <- NULL
+
+  mean_scores <- append(mean_scores, mean(scores))
+  median_scores <- append(median_scores, median(scores))
+  mean_num_rolls <- append(mean_num_rolls, mean(num_rolls))
+  median_num_rolls <- append(median_num_rolls, median(num_rolls))
+  strategies[[i]] <- table
+}
+```
+
+```{r}
+total_scores <- mean_scores + median_scores
+best <- which.max(total_scores)
+
+max(mean_scores)
+max(median_scores)
+max(total_scores)
+strategies[[best]]
+```
+
+# Testing Stuff
+
+## Stuff for "Race to Finish Strategy"
+
+```{r}
+poss <- data.frame(die1 = rep(c(rep(1, 6), rep(2, 6), rep(3, 6),
+                                rep(4, 6), rep(5, 6), rep(6, 6)),
+                              6),
+                   die2 = rep(c(rep(c(1, 2, 3, 4, 5, 6), 6)), 6),
+                   die3 = c(rep(1, 36), rep(2, 36), rep(3, 36),
+                            rep(4, 36), rep(5, 36), rep(6, 36)))
+poss$sum1 <- poss$die1 + poss$die2
+poss$sum2 <- poss$die1 + poss$die3
+poss$sum3 <- poss$die2 + poss$die3
+```
+
+### 1 die
+
+Worse
+
+```{r}
+prob1 <- c(# 0 to 1
+            1,
+            mean(poss$sum1 == 2),
+            mean(poss$sum1 == 3),
+            mean(poss$sum1 == 4),
+            mean(poss$sum1 == 5),
+            mean(poss$sum1 == 6),
+            mean(poss$sum1 == 7),
+            rep(0, 19),
+            # 1 to 2
+            0,
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 3),
+            mean(poss$sum1 == 4),
+            mean(poss$sum1 == 5),
+            mean(poss$sum1 == 6),
+            mean(poss$sum1 == 7),
+            mean(poss$sum1 == 8),
+            rep(0, 13),
+            rep(0, 2),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 4),
+            mean(poss$sum1 == 5),
+            mean(poss$sum1 == 6),
+            mean(poss$sum1 == 7),
+            mean(poss$sum1 == 8),
+            rep(0, 13),
+            rep(0, 3),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 5),
+            mean(poss$sum1 == 6),
+            mean(poss$sum1 == 7),
+            mean(poss$sum1 == 8),
+            rep(0, 13),
+            rep(0, 4),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 6),
+            mean(poss$sum1 == 7),
+            mean(poss$sum1 == 8),
+            rep(0, 13),
+            rep(0, 5),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 7),
+            mean(poss$sum1 == 8),
+            rep(0, 13),
+            rep(0, 6),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 8),
+            rep(0, 13),
+            # 2 to 3
+            rep(0, 7),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 4),
+            mean(poss$sum1 == 5),
+            mean(poss$sum1 == 6),
+            mean(poss$sum1 == 7),
+            mean(poss$sum1 == 8),
+            mean(poss$sum1 == 9),
+            rep(0, 7),
+            rep(0, 8),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 5),
+            mean(poss$sum1 == 6),
+            mean(poss$sum1 == 7),
+            mean(poss$sum1 == 8),
+            mean(poss$sum1 == 9),
+            rep(0, 7),
+            rep(0, 9),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 6),
+            mean(poss$sum1 == 7),
+            mean(poss$sum1 == 8),
+            mean(poss$sum1 == 9),
+            rep(0, 7),
+            rep(0, 10),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 7),
+            mean(poss$sum1 == 8),
+            mean(poss$sum1 == 9),
+            rep(0, 7),
+            rep(0, 11),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 8),
+            mean(poss$sum1 == 9),
+            rep(0, 7),
+            rep(0, 12),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 9),
+            rep(0, 7),
+            # 3 to 4
+            rep(0, 13),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 5),
+            mean(poss$sum1 == 6),
+            mean(poss$sum1 == 7),
+            mean(poss$sum1 == 8),
+            mean(poss$sum1 == 9),
+            mean(poss$sum1 == 10),
+            0,
+            rep(0, 14),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 6),
+            mean(poss$sum1 == 7),
+            mean(poss$sum1 == 8),
+            mean(poss$sum1 == 9),
+            mean(poss$sum1 == 10),
+            0,
+            rep(0, 15),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 7),
+            mean(poss$sum1 == 8),
+            mean(poss$sum1 == 9),
+            mean(poss$sum1 == 10),
+            0,
+            rep(0, 16),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 8),
+            mean(poss$sum1 == 9),
+            mean(poss$sum1 == 10),
+            0,
+            rep(0, 17),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 9),
+            mean(poss$sum1 == 10),
+            0,
+            rep(0, 18),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 10),
+            0,
+            # 4 to 5
+            rep(0, 19),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 %in% 6:11),
+            rep(0, 20),
+            1,
+            rep(0, 4),
+            mean(poss$sum1 %in% 7:11),
+            rep(0, 21),
+            1,
+            rep(0, 3),
+            mean(poss$sum1 %in% 8:11),
+            rep(0, 22),
+            1,
+            rep(0, 2),
+            mean(poss$sum1 %in% 9:11),
+            rep(0, 23),
+            1,
+            0,
+            mean(poss$sum1 %in% 10:11),
+            rep(0, 24),
+            1,
+            mean(poss$sum1 == 11),
+            rep(0, 25),
+            1)
+```
+
+Better
+
+```{r}
+prob1 <- c(# 0 to 1
+            1,
+            mean(poss$sum1 == 2),
+            mean(poss$sum1 == 3),
+            mean(poss$sum1 == 4),
+            0,
+            0,
+            0,
+            rep(0, 19),
+            # 1 to 2
+            0,
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 3),
+            mean(poss$sum1 == 4),
+            mean(poss$sum1 == 5),
+            0,
+            0,
+            0,
+            rep(0, 13),
+            rep(0, 2),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 4),
+            mean(poss$sum1 == 5),
+            mean(poss$sum1 == 6),
+            0,
+            0,
+            rep(0, 13),
+            rep(0, 3),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 5),
+            mean(poss$sum1 == 6),
+            0,
+            0,
+            rep(0, 13),
+            rep(0, 4),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 6),
+            0,
+            0,
+            rep(0, 13),
+            rep(0, 5),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 7),
+            0,
+            rep(0, 13),
+            rep(0, 6),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 8),
+            rep(0, 13),
+            # 2 to 3
+            rep(0, 7),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 4),
+            mean(poss$sum1 == 5),
+            mean(poss$sum1 == 6),
+            0,
+            0,
+            0,
+            rep(0, 7),
+            rep(0, 8),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 5),
+            mean(poss$sum1 == 6),
+            mean(poss$sum1 == 7),
+            0,
+            0,
+            rep(0, 7),
+            rep(0, 9),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 6),
+            mean(poss$sum1 == 7),
+            0,
+            0,
+            rep(0, 7),
+            rep(0, 10),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 7),
+            0,
+            0,
+            rep(0, 7),
+            rep(0, 11),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 8),
+            0,
+            rep(0, 7),
+            rep(0, 12),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 9),
+            rep(0, 7),
+            # 3 to 4
+            rep(0, 13),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 5),
+            mean(poss$sum1 == 6),
+            mean(poss$sum1 == 7),
+            mean(poss$sum1 == 8),
+            0,
+            0,
+            0,
+            rep(0, 14),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 6),
+            mean(poss$sum1 == 7),
+            mean(poss$sum1 == 8),
+            0,
+            0,
+            0,
+            rep(0, 15),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 7),
+            mean(poss$sum1 == 8),
+            0,
+            0,
+            0,
+            rep(0, 16),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 8),
+            mean(poss$sum1 == 9),
+            0,
+            0,
+            rep(0, 17),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 9),
+            0,
+            0,
+            rep(0, 18),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 10),
+            0,
+            # 4 to 5
+            rep(0, 19),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 %in% 6:11),
+            rep(0, 20),
+            1,
+            rep(0, 4),
+            mean(poss$sum1 %in% 7:11),
+            rep(0, 21),
+            1,
+            rep(0, 3),
+            mean(poss$sum1 %in% 8:11),
+            rep(0, 22),
+            1,
+            rep(0, 2),
+            mean(poss$sum1 %in% 9:11),
+            rep(0, 23),
+            1,
+            0,
+            mean(poss$sum1 %in% 10:11),
+            rep(0, 24),
+            1,
+            mean(poss$sum1 == 11),
+            rep(0, 25),
+            1)
+```
+
+### 2 dice
+
+Worse
+
+```{r}
+prob2 <- c(# 0 to 1
+            1,
+            mean(poss$sum1 == 2 | poss$sum2 == 2),
+            mean((poss$sum1 == 3 | poss$sum2 == 3) &
+                   (poss$sum1 >= 3 & poss$sum2 >= 3)),
+            mean((poss$sum1 == 4 | poss$sum2 == 4) &
+                   (poss$sum1 >= 4 & poss$sum2 >= 4)),
+            mean((poss$sum1 == 5 | poss$sum2 == 5) &
+                   (poss$sum1 >= 5 & poss$sum2 >= 5)),
+            mean((poss$sum1 == 6 | poss$sum2 == 6) &
+                   (poss$sum1 >= 6 & poss$sum2 >= 6)),
+            mean((poss$sum1 == 7 | poss$sum2 == 7) &
+                   (poss$sum1 >= 7 & poss$sum2 >= 7)),
+            rep(0, 19),
+            # 1 to 2
+            0,
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 3 | poss$sum2 == 3),
+            mean((poss$sum1 == 4 | poss$sum2 == 4) &
+                   (!(poss$sum1 %in% 3) & !(poss$sum2 %in% 3))),
+            mean((poss$sum1 == 5 | poss$sum2 == 5) &
+                   (!(poss$sum1 %in% 3:4) & !(poss$sum2 %in% 3:4))),
+            mean((poss$sum1 == 6 | poss$sum2 == 6) &
+                   (!(poss$sum1 %in% 3:5) & !(poss$sum2 %in% 3:5))),
+            mean((poss$sum1 == 7 | poss$sum2 == 7) &
+                   (!(poss$sum1 %in% 3:6) & !(poss$sum2 %in% 3:6))),
+            mean((poss$sum1 == 8 | poss$sum2 == 8) &
+                   (!(poss$sum1 %in% 3:7) & !(poss$sum2 %in% 3:7))),
+            rep(0, 13),
+            rep(0, 2),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 4 | poss$sum2 == 4),
+            mean((poss$sum1 == 5 | poss$sum2 == 5) &
+                   (!(poss$sum1 %in% 4) & !(poss$sum2 %in% 4))),
+            mean((poss$sum1 == 6 | poss$sum2 == 6) &
+                   (!(poss$sum1 %in% 4:5) & !(poss$sum2 %in% 4:5))),
+            mean((poss$sum1 == 7 | poss$sum2 == 7) &
+                   (!(poss$sum1 %in% 4:6) & !(poss$sum2 %in% 4:6))),
+            mean((poss$sum1 == 8 | poss$sum2 == 8) &
+                   (!(poss$sum1 %in% 4:7) & !(poss$sum2 %in% 4:7))),
+            rep(0, 13),
+            rep(0, 3),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 5 | poss$sum2 == 5),
+            mean((poss$sum1 == 6 | poss$sum2 == 6) &
+                   (!(poss$sum1 %in% 5) & !(poss$sum2 %in% 5))),
+            mean((poss$sum1 == 7 | poss$sum2 == 7) &
+                   (!(poss$sum1 %in% 5:6) & !(poss$sum2 %in% 5:6))),
+            mean((poss$sum1 == 8 | poss$sum2 == 8) &
+                   (!(poss$sum1 %in% 5:7) & !(poss$sum2 %in% 5:7))),
+            rep(0, 13),
+            rep(0, 4),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 6 | poss$sum2 == 6),
+            mean((poss$sum1 == 7 | poss$sum2 == 7) &
+                   (!(poss$sum1 %in% 6) & !(poss$sum2 %in% 6))),
+            mean((poss$sum1 == 8 | poss$sum2 == 8) &
+                   (!(poss$sum1 %in% 6:7) & !(poss$sum2 %in% 6:7))),
+            rep(0, 13),
+            rep(0, 5),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 7 | poss$sum2 == 7),
+            mean((poss$sum1 == 8 | poss$sum2 == 8) &
+                   (!(poss$sum1 %in% 7) & !(poss$sum2 %in% 7))),
+            rep(0, 13),
+            rep(0, 6),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 8 | poss$sum2 == 8),
+            rep(0, 13),
+            # 2 to 3
+            rep(0, 7),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 4 | poss$sum2 == 4),
+            mean((poss$sum1 == 5 | poss$sum2 == 5) &
+                   (!(poss$sum1 %in% 4) & !(poss$sum2 %in% 4))),
+            mean((poss$sum1 == 6 | poss$sum2 == 6) &
+                   (!(poss$sum1 %in% 4:5) & !(poss$sum2 %in% 4:5))),
+            mean((poss$sum1 == 7 | poss$sum2 == 7) &
+                   (!(poss$sum1 %in% 4:6) & !(poss$sum2 %in% 4:6))),
+            mean((poss$sum1 == 8 | poss$sum2 == 8) &
+                   (!(poss$sum1 %in% 4:7) & !(poss$sum2 %in% 4:7))),
+            mean((poss$sum1 == 9 | poss$sum2 == 9) &
+                   (!(poss$sum1 %in% 4:8) & !(poss$sum2 %in% 4:8))),
+            rep(0, 7),
+            rep(0, 8),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 5 | poss$sum2 == 5),
+            mean((poss$sum1 == 6 | poss$sum2 == 6) &
+                   (!(poss$sum1 %in% 5) & !(poss$sum2 %in% 5))),
+            mean((poss$sum1 == 7 | poss$sum2 == 7) &
+                   (!(poss$sum1 %in% 5:6) & !(poss$sum2 %in% 5:6))),
+            mean((poss$sum1 == 8 | poss$sum2 == 8) &
+                   (!(poss$sum1 %in% 5:7) & !(poss$sum2 %in% 5:7))),
+            mean((poss$sum1 == 9 | poss$sum2 == 9) &
+                   (!(poss$sum1 %in% 5:8) & !(poss$sum2 %in% 5:8))),
+            rep(0, 7),
+            rep(0, 9),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 6 | poss$sum2 == 6),
+            mean((poss$sum1 == 7 | poss$sum2 == 7) &
+                   (!(poss$sum1 %in% 6) & !(poss$sum2 %in% 6))),
+            mean((poss$sum1 == 8 | poss$sum2 == 8) &
+                   (!(poss$sum1 %in% 6:7) & !(poss$sum2 %in% 6:7))),
+            mean((poss$sum1 == 9 | poss$sum2 == 9) &
+                   (!(poss$sum1 %in% 6:8) & !(poss$sum2 %in% 6:8))),
+            rep(0, 7),
+            rep(0, 10),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 7 | poss$sum2 == 7),
+            mean((poss$sum1 == 8 | poss$sum2 == 8) &
+                   (!(poss$sum1 %in% 7) & !(poss$sum2 %in% 7))),
+            mean((poss$sum1 == 9 | poss$sum2 == 9) &
+                   (!(poss$sum1 %in% 7:8) & !(poss$sum2 %in% 7:8))),
+            rep(0, 7),
+            rep(0, 11),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 8 | poss$sum2 == 8),
+            mean((poss$sum1 == 9 | poss$sum2 == 9) &
+                   (!(poss$sum1 %in% 8) & !(poss$sum2 %in% 8))),
+            rep(0, 7),
+            rep(0, 12),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 9 | poss$sum2 == 9),
+            rep(0, 7),
+            # 3 to 4
+            rep(0, 13),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 5 | poss$sum2 == 5),
+            mean((poss$sum1 == 6 | poss$sum2 == 6) &
+                   (!(poss$sum1 %in% 5) & !(poss$sum2 %in% 5))),
+            mean((poss$sum1 == 7 | poss$sum2 == 7) &
+                   (!(poss$sum1 %in% 5:6) & !(poss$sum2 %in% 5:6))),
+            mean((poss$sum1 == 8 | poss$sum2 == 8) &
+                   (!(poss$sum1 %in% 5:7) & !(poss$sum2 %in% 5:7))),
+            mean((poss$sum1 == 9 | poss$sum2 == 9) &
+                   (!(poss$sum1 %in% 5:8) & !(poss$sum2 %in% 5:8))),
+            mean((poss$sum1 == 10 | poss$sum2 == 10) &
+                   (!(poss$sum1 %in% 5:9) & !(poss$sum2 %in% 5:9))),
+            0,
+            rep(0, 14),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 6 | poss$sum2 == 6),
+            mean((poss$sum1 == 7 | poss$sum2 == 7) &
+                   (!(poss$sum1 %in% 6) & !(poss$sum2 %in% 6))),
+            mean((poss$sum1 == 8 | poss$sum2 == 8) &
+                   (!(poss$sum1 %in% 6:7) & !(poss$sum2 %in% 6:7))),
+            mean((poss$sum1 == 9 | poss$sum2 == 9) &
+                   (!(poss$sum1 %in% 6:8) & !(poss$sum2 %in% 6:8))),
+            mean((poss$sum1 == 10 | poss$sum2 == 10) &
+                   (!(poss$sum1 %in% 6:9) & !(poss$sum2 %in% 6:9))),
+            0,
+            rep(0, 15),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 7 | poss$sum2 == 7),
+            mean((poss$sum1 == 8 | poss$sum2 == 8) &
+                   (!(poss$sum1 %in% 7) & !(poss$sum2 %in% 7))),
+            mean((poss$sum1 == 9 | poss$sum2 == 9) &
+                   (!(poss$sum1 %in% 7:8) & !(poss$sum2 %in% 7:8))),
+            mean((poss$sum1 == 10 | poss$sum2 == 10) &
+                   (!(poss$sum1 %in% 7:9) & !(poss$sum2 %in% 7:9))),
+            0,
+            rep(0, 16),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 8 | poss$sum2 == 8),
+            mean((poss$sum1 == 9 | poss$sum2 == 9) &
+                   (!(poss$sum1 %in% 8) & !(poss$sum2 %in% 8))),
+            mean((poss$sum1 == 10 | poss$sum2 == 10) &
+                   (!(poss$sum1 %in% 8:9) & !(poss$sum2 %in% 8:9))),
+            0,
+            rep(0, 17),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 9 | poss$sum2 == 9),
+            mean((poss$sum1 == 10 | poss$sum2 == 10) &
+                   (!(poss$sum1 %in% 9) & !(poss$sum2 %in% 9))),
+            0,
+            rep(0, 18),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 10 | poss$sum2 == 10),
+            0,
+            # 4 to 5
+            rep(0, 19),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 %in% 6:11 | poss$sum2 %in% 6:11),
+            rep(0, 20),
+            1,
+            rep(0, 4),
+            mean(poss$sum1 %in% 7:11 | poss$sum2 %in% 7:11),
+            rep(0, 21),
+            1,
+            rep(0, 3),
+            mean(poss$sum1 %in% 8:11 | poss$sum2 %in% 8:11),
+            rep(0, 22),
+            1,
+            rep(0, 2),
+            mean(poss$sum1 %in% 9:11 | poss$sum2 %in% 9:11),
+            rep(0, 23),
+            1,
+            0,
+            mean(poss$sum1 %in% 10:11 | poss$sum2 %in% 10:11),
+            rep(0, 24),
+            1,
+            mean(poss$sum1 == 11 | poss$sum2 == 11),
+            rep(0, 25),
+            1)
+```
+
+Better
+
+```{r}
+prob2 <- c(# 0 to 1
+            1,
+            mean(poss$sum1 == 2 | poss$sum2 == 2),
+            mean((poss$sum1 == 3 | poss$sum2 == 3) &
+                   (poss$sum1 >= 3 & poss$sum2 >= 3)),
+            mean((poss$sum1 == 4 | poss$sum2 == 4) &
+                   (poss$sum1 >= 4 & poss$sum2 >= 4)),
+            mean((poss$sum1 == 5 | poss$sum2 == 5) &
+                   (poss$sum1 >= 5 & poss$sum2 >= 5)),
+            0,
+            0,
+            rep(0, 19),
+            # 1 to 2
+            0,
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 3 | poss$sum2 == 3),
+            mean((poss$sum1 == 4 | poss$sum2 == 4) &
+                   (!(poss$sum1 %in% 3) & !(poss$sum2 %in% 3))),
+            mean((poss$sum1 == 5 | poss$sum2 == 5) &
+                   (!(poss$sum1 %in% 3:4) & !(poss$sum2 %in% 3:4))),
+            0,
+            0,
+            0,
+            rep(0, 13),
+            rep(0, 2),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 4 | poss$sum2 == 4),
+            mean((poss$sum1 == 5 | poss$sum2 == 5) &
+                   (!(poss$sum1 %in% 4) & !(poss$sum2 %in% 4))),
+            mean((poss$sum1 == 6 | poss$sum2 == 6) &
+                   (!(poss$sum1 %in% 4:5) & !(poss$sum2 %in% 4:5))),
+            0,
+            0,
+            rep(0, 13),
+            rep(0, 3),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 5 | poss$sum2 == 5),
+            mean((poss$sum1 == 6 | poss$sum2 == 6) &
+                   (!(poss$sum1 %in% 5) & !(poss$sum2 %in% 5))),
+            0,
+            0,
+            rep(0, 13),
+            rep(0, 4),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 6 | poss$sum2 == 6),
+            0,
+            0,
+            rep(0, 13),
+            rep(0, 5),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 7 | poss$sum2 == 7),
+            0,
+            rep(0, 13),
+            rep(0, 6),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 8 | poss$sum2 == 8),
+            rep(0, 13),
+            # 2 to 3
+            rep(0, 7),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 4 | poss$sum2 == 4),
+            mean((poss$sum1 == 5 | poss$sum2 == 5) &
+                   (!(poss$sum1 %in% 4) & !(poss$sum2 %in% 4))),
+            mean((poss$sum1 == 6 | poss$sum2 == 6) &
+                   (!(poss$sum1 %in% 4:5) & !(poss$sum2 %in% 4:5))),
+            0,
+            0,
+            0,
+            rep(0, 7),
+            rep(0, 8),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 5 | poss$sum2 == 5),
+            mean((poss$sum1 == 6 | poss$sum2 == 6) &
+                   (!(poss$sum1 %in% 5) & !(poss$sum2 %in% 5))),
+            mean((poss$sum1 == 7 | poss$sum2 == 7) &
+                   (!(poss$sum1 %in% 5:6) & !(poss$sum2 %in% 5:6))),
+            0,
+            0,
+            rep(0, 7),
+            rep(0, 9),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 6 | poss$sum2 == 6),
+            mean((poss$sum1 == 7 | poss$sum2 == 7) &
+                   (!(poss$sum1 %in% 6) & !(poss$sum2 %in% 6))),
+            0,
+            0,
+            rep(0, 7),
+            rep(0, 10),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 7 | poss$sum2 == 7),
+            0,
+            0,
+            rep(0, 7),
+            rep(0, 11),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 8 | poss$sum2 == 8),
+            0,
+            rep(0, 7),
+            rep(0, 12),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 9 | poss$sum2 == 9),
+            rep(0, 7),
+            # 3 to 4
+            rep(0, 13),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 5 | poss$sum2 == 5),
+            mean((poss$sum1 == 6 | poss$sum2 == 6) &
+                   (!(poss$sum1 %in% 5) & !(poss$sum2 %in% 5))),
+            mean((poss$sum1 == 7 | poss$sum2 == 7) &
+                   (!(poss$sum1 %in% 5:6) & !(poss$sum2 %in% 5:6))),
+            mean((poss$sum1 == 8 | poss$sum2 == 8) &
+                   (!(poss$sum1 %in% 5:7) & !(poss$sum2 %in% 5:7))),
+            0,
+            0,
+            0,
+            rep(0, 14),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 6 | poss$sum2 == 6),
+            mean((poss$sum1 == 7 | poss$sum2 == 7) &
+                   (!(poss$sum1 %in% 6) & !(poss$sum2 %in% 6))),
+            mean((poss$sum1 == 8 | poss$sum2 == 8) &
+                   (!(poss$sum1 %in% 6:7) & !(poss$sum2 %in% 6:7))),
+            0,
+            0,
+            0,
+            rep(0, 15),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 7 | poss$sum2 == 7),
+            mean((poss$sum1 == 8 | poss$sum2 == 8) &
+                   (!(poss$sum1 %in% 7) & !(poss$sum2 %in% 7))),
+            0,
+            0,
+            0,
+            rep(0, 16),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 8 | poss$sum2 == 8),
+            mean((poss$sum1 == 9 | poss$sum2 == 9) &
+                   (!(poss$sum1 %in% 8) & !(poss$sum2 %in% 8))),
+            0,
+            0,
+            rep(0, 17),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 9 | poss$sum2 == 9),
+            0,
+            0,
+            rep(0, 18),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 10 | poss$sum2 == 10),
+            0,
+            # 4 to 5
+            rep(0, 19),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 %in% 6:11 | poss$sum2 %in% 6:11),
+            rep(0, 20),
+            1,
+            rep(0, 4),
+            mean(poss$sum1 %in% 7:11 | poss$sum2 %in% 7:11),
+            rep(0, 21),
+            1,
+            rep(0, 3),
+            mean(poss$sum1 %in% 8:11 | poss$sum2 %in% 8:11),
+            rep(0, 22),
+            1,
+            rep(0, 2),
+            mean(poss$sum1 %in% 9:11 | poss$sum2 %in% 9:11),
+            rep(0, 23),
+            1,
+            0,
+            mean(poss$sum1 %in% 10:11 | poss$sum2 %in% 10:11),
+            rep(0, 24),
+            1,
+            mean(poss$sum1 == 11 | poss$sum2 == 11),
+            rep(0, 25),
+            1)
+```
+
+### 3 dice
+
+Worse
+
+```{r}
+prob3 <- c(# 0 to 1
+            1,
+            mean(poss$sum1 == 2 | poss$sum2 == 2 | poss$sum3 == 2),
+            mean((poss$sum1 == 3 | poss$sum2 == 3 | poss$sum3 == 3) &
+                   (poss$sum1 >= 3 & poss$sum2 >= 3 & poss$sum3 >= 3)),
+            mean((poss$sum1 == 4 | poss$sum2 == 4 | poss$sum3 == 4) &
+                   (poss$sum1 >= 4 & poss$sum2 >= 4 & poss$sum3 >= 4)),
+            mean((poss$sum1 == 5 | poss$sum2 == 5 | poss$sum3 == 5) &
+                   (poss$sum1 >= 5 & poss$sum2 >= 5 & poss$sum3 >= 5)),
+            mean((poss$sum1 == 6 | poss$sum2 == 6 | poss$sum3 == 6) &
+                   (poss$sum1 >= 6 & poss$sum2 >= 6 & poss$sum3 >= 6)),
+            mean((poss$sum1 == 7 | poss$sum2 == 7 | poss$sum3 == 7) &
+                   (poss$sum1 >= 7 & poss$sum2 >= 7 & poss$sum3 >= 7)),
+            rep(0, 19),
+            # 1 to 2
+            0,
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 3 | poss$sum2 == 3 | poss$sum3 == 3),
+            mean((poss$sum1 == 4 | poss$sum2 == 4 | poss$sum3 == 4) &
+                   (!(poss$sum1 %in% 3) & !(poss$sum2 %in% 3) & !(poss$sum3 %in% 3))),
+            mean((poss$sum1 == 5 | poss$sum2 == 5 | poss$sum3 == 5) &
+                   (!(poss$sum1 %in% 3:4) & !(poss$sum2 %in% 3:4) & !(poss$sum3 %in% 3:4))),
+            mean((poss$sum1 == 6 | poss$sum2 == 6 | poss$sum3 == 6) &
+                   (!(poss$sum1 %in% 3:5) & !(poss$sum2 %in% 3:5) & !(poss$sum3 %in% 3:5))),
+            mean((poss$sum1 == 7 | poss$sum2 == 7 | poss$sum3 == 7) &
+                   (!(poss$sum1 %in% 3:6) & !(poss$sum2 %in% 3:6) & !(poss$sum3 %in% 3:6))),
+            mean((poss$sum1 == 8 | poss$sum2 == 8 | poss$sum3 == 8) &
+                   (!(poss$sum1 %in% 3:7) & !(poss$sum2 %in% 3:7) & !(poss$sum3 %in% 3:7))),
+            rep(0, 13),
+            rep(0, 2),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 4 | poss$sum2 == 4 | poss$sum3 == 4),
+            mean((poss$sum1 == 5 | poss$sum2 == 5 | poss$sum3 == 5) &
+                   (!(poss$sum1 %in% 4) & !(poss$sum2 %in% 4) & !(poss$sum3 %in% 4))),
+            mean((poss$sum1 == 6 | poss$sum2 == 6 | poss$sum3 == 6) &
+                   (!(poss$sum1 %in% 4:5) & !(poss$sum2 %in% 4:5) & !(poss$sum3 %in% 4:5))),
+            mean((poss$sum1 == 7 | poss$sum2 == 7 | poss$sum3 == 7) &
+                   (!(poss$sum1 %in% 4:6) & !(poss$sum2 %in% 4:6) & !(poss$sum3 %in% 4:6))),
+            mean((poss$sum1 == 8 | poss$sum2 == 8 | poss$sum3 == 8) &
+                   (!(poss$sum1 %in% 4:7) & !(poss$sum2 %in% 4:7) & !(poss$sum3 %in% 4:7))),
+            rep(0, 13),
+            rep(0, 3),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 5 | poss$sum2 == 5 | poss$sum3 == 5),
+            mean((poss$sum1 == 6 | poss$sum2 == 6 | poss$sum3 == 6) &
+                   (!(poss$sum1 %in% 5) & !(poss$sum2 %in% 5) & !(poss$sum3 %in% 5))),
+            mean((poss$sum1 == 7 | poss$sum2 == 7 | poss$sum3 == 7) &
+                   (!(poss$sum1 %in% 5:6) & !(poss$sum2 %in% 5:6) & !(poss$sum3 %in% 5:6))),
+            mean((poss$sum1 == 8 | poss$sum2 == 8 | poss$sum3 == 8) &
+                   (!(poss$sum1 %in% 5:7) & !(poss$sum2 %in% 5:7) & !(poss$sum3 %in% 5:7))),
+            rep(0, 13),
+            rep(0, 4),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 6 | poss$sum2 == 6 | poss$sum3 == 6),
+            mean((poss$sum1 == 7 | poss$sum2 == 7 | poss$sum3 == 7) &
+                   (!(poss$sum1 %in% 6) & !(poss$sum2 %in% 6) & !(poss$sum3 %in% 6))),
+            mean((poss$sum1 == 8 | poss$sum2 == 8 | poss$sum3 == 8) &
+                   (!(poss$sum1 %in% 6:7) & !(poss$sum2 %in% 6:7) & !(poss$sum3 %in% 6:7))),
+            rep(0, 13),
+            rep(0, 5),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 7 | poss$sum2 == 7 | poss$sum3 == 7),
+            mean((poss$sum1 == 8 | poss$sum2 == 8 | poss$sum3 == 8) &
+                   (!(poss$sum1 %in% 7) & !(poss$sum2 %in% 7) & !(poss$sum3 %in% 7))),
+            rep(0, 13),
+            rep(0, 6),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 8 | poss$sum2 == 8 | poss$sum3 == 8),
+            rep(0, 13),
+            # 2 to 3
+            rep(0, 7),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 4 | poss$sum2 == 4 | poss$sum3 == 4),
+            mean((poss$sum1 == 5 | poss$sum2 == 5 | poss$sum3 == 5) &
+                   (!(poss$sum1 %in% 4) & !(poss$sum2 %in% 4) & !(poss$sum3 %in% 4))),
+            mean((poss$sum1 == 6 | poss$sum2 == 6 | poss$sum3 == 6) &
+                   (!(poss$sum1 %in% 4:5) & !(poss$sum2 %in% 4:5) & !(poss$sum3 %in% 4:5))),
+            mean((poss$sum1 == 7 | poss$sum2 == 7 | poss$sum3 == 7) &
+                   (!(poss$sum1 %in% 4:6) & !(poss$sum2 %in% 4:6) & !(poss$sum3 %in% 4:6))),
+            mean((poss$sum1 == 8 | poss$sum2 == 8 | poss$sum3 == 8) &
+                   (!(poss$sum1 %in% 4:7) & !(poss$sum2 %in% 4:7) & !(poss$sum3 %in% 4:7))),
+            mean((poss$sum1 == 9 | poss$sum2 == 9 | poss$sum3 == 9) &
+                   (!(poss$sum1 %in% 4:8) & !(poss$sum2 %in% 4:8) & !(poss$sum3 %in% 4:8))),
+            rep(0, 7),
+            rep(0, 8),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 5 | poss$sum2 == 5 | poss$sum3 == 5),
+            mean((poss$sum1 == 6 | poss$sum2 == 6 | poss$sum3 == 6) &
+                   (!(poss$sum1 %in% 5) & !(poss$sum2 %in% 5) & !(poss$sum3 %in% 5))),
+            mean((poss$sum1 == 7 | poss$sum2 == 7 | poss$sum3 == 7) &
+                   (!(poss$sum1 %in% 5:6) & !(poss$sum2 %in% 5:6) & !(poss$sum3 %in% 5:6))),
+            mean((poss$sum1 == 8 | poss$sum2 == 8 | poss$sum3 == 8) &
+                   (!(poss$sum1 %in% 5:7) & !(poss$sum2 %in% 5:7) & !(poss$sum3 %in% 5:7))),
+            mean((poss$sum1 == 9 | poss$sum2 == 9 | poss$sum3 == 9) &
+                   (!(poss$sum1 %in% 5:8) & !(poss$sum2 %in% 5:8) & !(poss$sum3 %in% 5:8))),
+            rep(0, 7),
+            rep(0, 9),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 6 | poss$sum2 == 6 | poss$sum3 == 6),
+            mean((poss$sum1 == 7 | poss$sum2 == 7 | poss$sum3 == 7) &
+                   (!(poss$sum1 %in% 6) & !(poss$sum2 %in% 6) & !(poss$sum3 %in% 6))),
+            mean((poss$sum1 == 8 | poss$sum2 == 8 | poss$sum3 == 8) &
+                   (!(poss$sum1 %in% 6:7) & !(poss$sum2 %in% 6:7) & !(poss$sum3 %in% 6:7))),
+            mean((poss$sum1 == 9 | poss$sum2 == 9 | poss$sum3 == 9) &
+                   (!(poss$sum1 %in% 6:8) & !(poss$sum2 %in% 6:8) & !(poss$sum3 %in% 6:8))),
+            rep(0, 7),
+            rep(0, 10),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 7 | poss$sum2 == 7 | poss$sum3 == 7),
+            mean((poss$sum1 == 8 | poss$sum2 == 8 | poss$sum3 == 8) &
+                   (!(poss$sum1 %in% 7) & !(poss$sum2 %in% 7) & !(poss$sum3 %in% 7))),
+            mean((poss$sum1 == 9 | poss$sum2 == 9 | poss$sum3 == 9) &
+                   (!(poss$sum1 %in% 7:8) & !(poss$sum2 %in% 7:8) & !(poss$sum3 %in% 7:8))),
+            rep(0, 7),
+            rep(0, 11),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 8 | poss$sum2 == 8 | poss$sum3 == 8),
+            mean((poss$sum1 == 9 | poss$sum2 == 9 | poss$sum3 == 9) &
+                   (!(poss$sum1 %in% 8) & !(poss$sum2 %in% 8) & !(poss$sum3 %in% 8))),
+            rep(0, 7),
+            rep(0, 12),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 9 | poss$sum2 == 9 | poss$sum3 == 9),
+            rep(0, 7),
+            # 3 to 4
+            rep(0, 13),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 5 | poss$sum2 == 5 | poss$sum3 == 5),
+            mean((poss$sum1 == 6 | poss$sum2 == 6 | poss$sum3 == 6) &
+                   (!(poss$sum1 %in% 5) & !(poss$sum2 %in% 5) & !(poss$sum3 %in% 5))),
+            mean((poss$sum1 == 7 | poss$sum2 == 7 | poss$sum3 == 7) &
+                   (!(poss$sum1 %in% 5:6) & !(poss$sum2 %in% 5:6) & !(poss$sum3 %in% 5:6))),
+            mean((poss$sum1 == 8 | poss$sum2 == 8 | poss$sum3 == 8) &
+                   (!(poss$sum1 %in% 5:7) & !(poss$sum2 %in% 5:7) & !(poss$sum3 %in% 5:7))),
+            mean((poss$sum1 == 9 | poss$sum2 == 9 | poss$sum3 == 9) &
+                   (!(poss$sum1 %in% 5:8) & !(poss$sum2 %in% 5:8) & !(poss$sum3 %in% 5:8))),
+            mean((poss$sum1 == 10 | poss$sum2 == 10 | poss$sum3 == 10) &
+                   (!(poss$sum1 %in% 5:9) & !(poss$sum2 %in% 5:9) & !(poss$sum3 %in% 5:9))),
+            0,
+            rep(0, 14),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 6 | poss$sum2 == 6 | poss$sum3 == 6),
+            mean((poss$sum1 == 7 | poss$sum2 == 7 | poss$sum3 == 7) &
+                   (!(poss$sum1 %in% 6) & !(poss$sum2 %in% 6) & !(poss$sum3 %in% 6))),
+            mean((poss$sum1 == 8 | poss$sum2 == 8 | poss$sum3 == 8) &
+                   (!(poss$sum1 %in% 6:7) & !(poss$sum2 %in% 6:7) & !(poss$sum3 %in% 6:7))),
+            mean((poss$sum1 == 9 | poss$sum2 == 9 | poss$sum3 == 9) &
+                   (!(poss$sum1 %in% 6:8) & !(poss$sum2 %in% 6:8) & !(poss$sum3 %in% 6:8))),
+            mean((poss$sum1 == 10 | poss$sum2 == 10 | poss$sum3 == 10) &
+                   (!(poss$sum1 %in% 6:9) & !(poss$sum2 %in% 6:9) & !(poss$sum3 %in% 6:9))),
+            0,
+            rep(0, 15),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 7 | poss$sum2 == 7 | poss$sum3 == 7),
+            mean((poss$sum1 == 8 | poss$sum2 == 8 | poss$sum3 == 8) &
+                   (!(poss$sum1 %in% 7) & !(poss$sum2 %in% 7) & !(poss$sum3 %in% 7))),
+            mean((poss$sum1 == 9 | poss$sum2 == 9 | poss$sum3 == 9) &
+                   (!(poss$sum1 %in% 7:8) & !(poss$sum2 %in% 7:8) & !(poss$sum3 %in% 7:8))),
+            mean((poss$sum1 == 10 | poss$sum2 == 10 | poss$sum3 == 10) &
+                   (!(poss$sum1 %in% 7:9) & !(poss$sum2 %in% 7:9) & !(poss$sum3 %in% 7:9))),
+            0,
+            rep(0, 16),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 8 | poss$sum2 == 8 | poss$sum3 == 8),
+            mean((poss$sum1 == 9 | poss$sum2 == 9 | poss$sum3 == 9) &
+                   (!(poss$sum1 %in% 8) & !(poss$sum2 %in% 8) & !(poss$sum3 %in% 8))),
+            mean((poss$sum1 == 10 | poss$sum2 == 10 | poss$sum3 == 10) &
+                   (!(poss$sum1 %in% 8:9) & !(poss$sum2 %in% 8:9) & !(poss$sum3 %in% 8:9))),
+            0,
+            rep(0, 17),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 9 | poss$sum2 == 9 | poss$sum3 == 9),
+            mean((poss$sum1 == 10 | poss$sum2 == 10 | poss$sum3 == 10) &
+                   (!(poss$sum1 %in% 9) & !(poss$sum2 %in% 9) & !(poss$sum3 %in% 9))),
+            0,
+            rep(0, 18),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 10 | poss$sum2 == 10 | poss$sum3 == 10),
+            0,
+            # 4 to 5
+            rep(0, 19),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 %in% 6:11 | poss$sum2 %in% 6:11 | poss$sum3 %in% 6:11),
+            rep(0, 20),
+            1,
+            rep(0, 4),
+            mean(poss$sum1 %in% 7:11 | poss$sum2 %in% 7:11 | poss$sum3 %in% 7:11),
+            rep(0, 21),
+            1,
+            rep(0, 3),
+            mean(poss$sum1 %in% 8:11 | poss$sum2 %in% 8:11 | poss$sum3 %in% 8:11),
+            rep(0, 22),
+            1,
+            rep(0, 2),
+            mean(poss$sum1 %in% 9:11 | poss$sum2 %in% 9:11 | poss$sum3 %in% 9:11),
+            rep(0, 23),
+            1,
+            0,
+            mean(poss$sum1 %in% 10:11 | poss$sum2 %in% 10:11 | poss$sum3 %in% 10:11),
+            rep(0, 24),
+            1,
+            mean(poss$sum1 == 11 | poss$sum2 == 11 | poss$sum3 == 11),
+            rep(0, 25),
+            1)
+```
+
+Better
+
+```{r}
+prob3 <- c(# 0 to 1
+            1,
+            mean(poss$sum1 == 2 | poss$sum2 == 2 | poss$sum3 == 2),
+            mean((poss$sum1 == 3 | poss$sum2 == 3 | poss$sum3 == 3) &
+                   (poss$sum1 >= 3 & poss$sum2 >= 3 & poss$sum3 >= 3)),
+            mean((poss$sum1 == 4 | poss$sum2 == 4 | poss$sum3 == 4) &
+                   (poss$sum1 >= 4 & poss$sum2 >= 4 & poss$sum3 >= 4)),
+            mean((poss$sum1 == 5 | poss$sum2 == 5 | poss$sum3 == 5) &
+                   (poss$sum1 >= 5 & poss$sum2 >= 5 & poss$sum3 >= 5)),
+            0,
+            0,
+            rep(0, 19),
+            # 1 to 2
+            0,
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 3 | poss$sum2 == 3 | poss$sum3 == 3),
+            mean((poss$sum1 == 4 | poss$sum2 == 4 | poss$sum3 == 4) &
+                   (!(poss$sum1 %in% 3) & !(poss$sum2 %in% 3) & !(poss$sum3 %in% 3))),
+            mean((poss$sum1 == 5 | poss$sum2 == 5 | poss$sum3 == 5) &
+                   (!(poss$sum1 %in% 3:4) & !(poss$sum2 %in% 3:4) & !(poss$sum3 %in% 3:4))),
+            mean((poss$sum1 == 6 | poss$sum2 == 6 | poss$sum3 == 6) &
+                   (!(poss$sum1 %in% 3:5) & !(poss$sum2 %in% 3:5) & !(poss$sum3 %in% 3:5))),
+            0,
+            0,
+            rep(0, 13),
+            rep(0, 2),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 4 | poss$sum2 == 4 | poss$sum3 == 4),
+            mean((poss$sum1 == 5 | poss$sum2 == 5 | poss$sum3 == 5) &
+                   (!(poss$sum1 %in% 4) & !(poss$sum2 %in% 4) & !(poss$sum3 %in% 4))),
+            mean((poss$sum1 == 6 | poss$sum2 == 6 | poss$sum3 == 6) &
+                   (!(poss$sum1 %in% 4:5) & !(poss$sum2 %in% 4:5) & !(poss$sum3 %in% 4:5))),
+            0,
+            0,
+            rep(0, 13),
+            rep(0, 3),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 5 | poss$sum2 == 5 | poss$sum3 == 5),
+            mean((poss$sum1 == 6 | poss$sum2 == 6 | poss$sum3 == 6) &
+                   (!(poss$sum1 %in% 5) & !(poss$sum2 %in% 5) & !(poss$sum3 %in% 5))),
+            0,
+            0,
+            rep(0, 13),
+            rep(0, 4),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 6 | poss$sum2 == 6 | poss$sum3 == 6),
+            0,
+            0,
+            rep(0, 13),
+            rep(0, 5),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 7 | poss$sum2 == 7 | poss$sum3 == 7),
+            0,
+            rep(0, 13),
+            rep(0, 6),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 8 | poss$sum2 == 8 | poss$sum3 == 8),
+            rep(0, 13),
+            # 2 to 3
+            rep(0, 7),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 4 | poss$sum2 == 4 | poss$sum3 == 4),
+            mean((poss$sum1 == 5 | poss$sum2 == 5 | poss$sum3 == 5) &
+                   (!(poss$sum1 %in% 4) & !(poss$sum2 %in% 4) & !(poss$sum3 %in% 4))),
+            mean((poss$sum1 == 6 | poss$sum2 == 6 | poss$sum3 == 6) &
+                   (!(poss$sum1 %in% 4:5) & !(poss$sum2 %in% 4:5) & !(poss$sum3 %in% 4:5))),
+            mean((poss$sum1 == 7 | poss$sum2 == 7 | poss$sum3 == 7) &
+                   (!(poss$sum1 %in% 4:6) & !(poss$sum2 %in% 4:6) & !(poss$sum3 %in% 4:6))),
+            0,
+            0,
+            rep(0, 7),
+            rep(0, 8),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 5 | poss$sum2 == 5 | poss$sum3 == 5),
+            mean((poss$sum1 == 6 | poss$sum2 == 6 | poss$sum3 == 6) &
+                   (!(poss$sum1 %in% 5) & !(poss$sum2 %in% 5) & !(poss$sum3 %in% 5))),
+            mean((poss$sum1 == 7 | poss$sum2 == 7 | poss$sum3 == 7) &
+                   (!(poss$sum1 %in% 5:6) & !(poss$sum2 %in% 5:6) & !(poss$sum3 %in% 5:6))),
+            0,
+            0,
+            rep(0, 7),
+            rep(0, 9),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 6 | poss$sum2 == 6 | poss$sum3 == 6),
+            mean((poss$sum1 == 7 | poss$sum2 == 7 | poss$sum3 == 7) &
+                   (!(poss$sum1 %in% 6) & !(poss$sum2 %in% 6) & !(poss$sum3 %in% 6))),
+            0,
+            0,
+            rep(0, 7),
+            rep(0, 10),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 7 | poss$sum2 == 7 | poss$sum3 == 7),
+            0,
+            0,
+            rep(0, 7),
+            rep(0, 11),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 8 | poss$sum2 == 8 | poss$sum3 == 8),
+            0,
+            rep(0, 7),
+            rep(0, 12),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 9 | poss$sum2 == 9 | poss$sum3 == 9),
+            rep(0, 7),
+            # 3 to 4
+            rep(0, 13),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 5 | poss$sum2 == 5 | poss$sum3 == 5),
+            mean((poss$sum1 == 6 | poss$sum2 == 6 | poss$sum3 == 6) &
+                   (!(poss$sum1 %in% 5) & !(poss$sum2 %in% 5) & !(poss$sum3 %in% 5))),
+            mean((poss$sum1 == 7 | poss$sum2 == 7 | poss$sum3 == 7) &
+                   (!(poss$sum1 %in% 5:6) & !(poss$sum2 %in% 5:6) & !(poss$sum3 %in% 5:6))),
+            mean((poss$sum1 == 8 | poss$sum2 == 8 | poss$sum3 == 8) &
+                   (!(poss$sum1 %in% 5:7) & !(poss$sum2 %in% 5:7) & !(poss$sum3 %in% 5:7))),
+            0,
+            0,
+            0,
+            rep(0, 14),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 6 | poss$sum2 == 6 | poss$sum3 == 6),
+            mean((poss$sum1 == 7 | poss$sum2 == 7 | poss$sum3 == 7) &
+                   (!(poss$sum1 %in% 6) & !(poss$sum2 %in% 6) & !(poss$sum3 %in% 6))),
+            mean((poss$sum1 == 8 | poss$sum2 == 8 | poss$sum3 == 8) &
+                   (!(poss$sum1 %in% 6:7) & !(poss$sum2 %in% 6:7) & !(poss$sum3 %in% 6:7))),
+            0,
+            0,
+            0,
+            rep(0, 15),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 7 | poss$sum2 == 7 | poss$sum3 == 7),
+            mean((poss$sum1 == 8 | poss$sum2 == 8 | poss$sum3 == 8) &
+                   (!(poss$sum1 %in% 7) & !(poss$sum2 %in% 7) & !(poss$sum3 %in% 7))),
+            mean((poss$sum1 == 9 | poss$sum2 == 9 | poss$sum3 == 9) &
+                   (!(poss$sum1 %in% 7:8) & !(poss$sum2 %in% 7:8) & !(poss$sum3 %in% 7:8))),
+            0,
+            0,
+            rep(0, 16),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 8 | poss$sum2 == 8 | poss$sum3 == 8),
+            mean((poss$sum1 == 9 | poss$sum2 == 9 | poss$sum3 == 9) &
+                   (!(poss$sum1 %in% 8) & !(poss$sum2 %in% 8) & !(poss$sum3 %in% 8))),
+            0,
+            0,
+            rep(0, 17),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 9 | poss$sum2 == 9 | poss$sum3 == 9),
+            0,
+            0,
+            rep(0, 18),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 == 10 | poss$sum2 == 10 | poss$sum3 == 10),
+            0,
+            # 4 to 5
+            rep(0, 19),
+            1,
+            rep(0, 5),
+            mean(poss$sum1 %in% 6:11 | poss$sum2 %in% 6:11 | poss$sum3 %in% 6:11),
+            rep(0, 20),
+            1,
+            rep(0, 4),
+            mean(poss$sum1 %in% 7:11 | poss$sum2 %in% 7:11 | poss$sum3 %in% 7:11),
+            rep(0, 21),
+            1,
+            rep(0, 3),
+            mean(poss$sum1 %in% 8:11 | poss$sum2 %in% 8:11 | poss$sum3 %in% 8:11),
+            rep(0, 22),
+            1,
+            rep(0, 2),
+            mean(poss$sum1 %in% 9:11 | poss$sum2 %in% 9:11 | poss$sum3 %in% 9:11),
+            rep(0, 23),
+            1,
+            0,
+            mean(poss$sum1 %in% 10:11 | poss$sum2 %in% 10:11 | poss$sum3 %in% 10:11),
+            rep(0, 24),
+            1,
+            mean(poss$sum1 == 11 | poss$sum2 == 11 | poss$sum3 == 11),
+            rep(0, 25),
+            1)
+```
+
+### Transition Matrices and Mean Turn/Rolls
+
+```{r}
+P1 <- t(matrix(prob1, 26, 26))
+P2 <- t(matrix(prob2, 26, 26))
+P3 <- t(matrix(prob3, 26, 26))
+
+P1[1, 1] <- 1 - sum(P1[1,2:26])
+P2[1, 1] <- 1 - sum(P2[1,2:26])
+P3[1, 1] <- 1 - sum(P3[1,2:26])
+for (i in 2:25) {
+  P1[i, i] <- 1 - sum(P1[i,c(1:(i-1), (i+1):26)])
+  P2[i, i] <- 1 - sum(P2[i,c(1:(i-1), (i+1):26)])
+  P3[i, i] <- 1 - sum(P3[i,c(1:(i-1), (i+1):26)])
+}
+
+solve(diag(25) - P1[1:25, 1:25], rep(1, 25))
+solve(diag(25) - P2[1:25, 1:25], rep(1, 25))
+solve(diag(25) - P3[1:25, 1:25], rep(1, 25))
+```
+
+### Viable Moves
+
+```{r}
+moves_w <- list(A = c('B', 'C', 'D', 'E', 'F', 'G'),
+                B = c('H', 'I', 'J', 'K', 'L', 'M'),
+                C = c('I', 'J', 'K', 'L', 'M'),
+                D = c('J', 'K', 'L', 'M'),
+                E = c('K', 'L', 'M'),
+                F = c('L', 'M'),
+                G = c('M'),
+                H = c('N', 'O', 'P', 'Q', 'R', 'S'),
+                I = c('O', 'P', 'Q', 'R', 'S'),
+                J = c('P', 'Q', 'R', 'S'),
+                K = c('Q', 'R', 'S'),
+                L = c('R', 'S'),
+                M = c('S'),
+                N = c('T', 'U', 'V', 'W', 'X', 'Y'),
+                O = c('U', 'V', 'W', 'X', 'Y'),
+                P = c('V', 'W', 'X', 'Y'),
+                Q = c('W', 'X', 'Y'),
+                R = c('X', 'Y'),
+                S = c('Y'),
+                T = c('Z'),
+                U = c('Z'),
+                V = c('Z'),
+                W = c('Z'),
+                X = c('Z'),
+                Y = c('Z'))
+
+moves_b1 <- list(A = c('B', 'C', 'D'),
+                 B = c('H', 'I', 'J'),
+                 C = c('I', 'J', 'K'),
+                 D = c('J', 'K'),
+                 E = c('K'),
+                 F = c('L'),
+                 G = c('M'),
+                 H = c('N', 'O', 'P'),
+                 I = c('O', 'P', 'Q'),
+                 J = c('P', 'Q'),
+                 K = c('Q'),
+                 L = c('R'),
+                 M = c('S'),
+                 N = c('T', 'U', 'V', 'W'),
+                 O = c('U', 'V', 'W'),
+                 P = c('V', 'W'),
+                 Q = c('W', 'X'),
+                 R = c('X'),
+                 S = c('Y'),
+                 T = c('Z'),
+                 U = c('Z'),
+                 V = c('Z'),
+                 W = c('Z'),
+                 X = c('Z'),
+                 Y = c('Z'))
+
+moves_b2 <- list(A = c('B', 'C', 'D', 'E'),
+                 B = c('H', 'I', 'J'),
+                 C = c('I', 'J', 'K'),
+                 D = c('J', 'K'),
+                 E = c('K'),
+                 F = c('L'),
+                 G = c('M'),
+                 H = c('N', 'O', 'P'),
+                 I = c('O', 'P', 'Q'),
+                 J = c('P', 'Q'),
+                 K = c('Q'),
+                 L = c('R'),
+                 M = c('S'),
+                 N = c('T', 'U', 'V', 'W'),
+                 O = c('U', 'V', 'W'),
+                 P = c('V', 'W'),
+                 Q = c('W', 'X'),
+                 R = c('X'),
+                 S = c('Y'),
+                 T = c('Z'),
+                 U = c('Z'),
+                 V = c('Z'),
+                 W = c('Z'),
+                 X = c('Z'),
+                 Y = c('Z'))
+
+moves_b3 <- list(A = c('B', 'C', 'D', 'E'),
+                 B = c('H', 'I', 'J', 'K'),
+                 C = c('I', 'J', 'K'),
+                 D = c('J', 'K'),
+                 E = c('K'),
+                 F = c('L'),
+                 G = c('M'),
+                 H = c('N', 'O', 'P', 'Q'),
+                 I = c('O', 'P', 'Q'),
+                 J = c('P', 'Q'),
+                 K = c('Q'),
+                 L = c('R'),
+                 M = c('S'),
+                 N = c('T', 'U', 'V', 'W'),
+                 O = c('U', 'V', 'W'),
+                 P = c('V', 'W', 'X'),
+                 Q = c('W', 'X'),
+                 R = c('X'),
+                 S = c('Y'),
+                 T = c('Z'),
+                 U = c('Z'),
+                 V = c('Z'),
+                 W = c('Z'),
+                 X = c('Z'),
+                 Y = c('Z'))
+```
+
+### Table for Strategy 3
+
+```{r}
+table <- data.frame(rp = 0, rc = 0, yp = 0, yc = 0,
+                    gp = 0, gc = 0, bp = 0, bc = 0,
+                    ws = 0, r = 0, y = 0, g = 0, b = 0,
+                    penalty = 0,
+                    roll1 = 0, roll_color1 = 0, roll2 = 0, roll_color2 = 0)
+```
