@@ -475,11 +475,11 @@ Move Options:
 
 1.  Move to any valid state
 
-2.  Only move to states that decrease number of rolls needed to lock a row based on 1 roll
+2.  Only move to states that decrease number of rolls needed to lock a row based on 1 sum
 
-3.  Only move to states that decrease number of rolls needed to lock a row based on 2 rolls
+3.  Only move to states that decrease number of rolls needed to lock a row based on 2 sums
 
-4.  Only move to states that decrease number of rolls needed to lock a row based on 3 rolls
+4.  Only move to states that decrease number of rolls needed to lock a row based on 3 sums
 
 ```{r}
 strategy2 <- function (row_r, row_y, row_g, row_b, decisions, move_option = 3,
